@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap');
+
+/* ── Global reset & base ─────────────────────────────────────── */
+html, body, #root {
+  min-height: 100%;
+  background-color: #faf7f4;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #1a1025;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens ────────────────────────────────────────────── */
+:root {
+  --purple-900: #2a1349;
+  --purple-800: #3d1f6e;
+  --purple-700: #572f96;
+  --purple-600: #6b3fb0;
+  --purple-400: #9f7dd4;
+  --purple-200: #d9ccef;
+  --purple-100: #ede5f7;
+  --purple-50:  #f5f0fb;
+  --cream-100:  #faf7f4;
+  --cream-200:  #f4ede6;
+  --cream-300:  #ecddd4;
+}
+
+/* ── Utility classes ─────────────────────────────────────────── */
+@layer utilities {
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+  .glass-purple {
+    background: rgba(107, 63, 176, 0.08);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(107, 63, 176, 0.15);
+  }
+
+  /* Pill badge */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.3rem 0.875rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .pill-purple {
+    background: var(--purple-100);
+    color: var(--purple-700);
+    border: 1px solid var(--purple-200);
+  }
+
+  /* Purple CTA button */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1.75rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: white;
+    background: linear-gradient(135deg, #6b3fb0, #3d1f6e);
+    box-shadow: 0 8px 24px rgba(107, 63, 176, 0.3);
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 32px rgba(107, 63, 176, 0.4);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* Ghost button */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1.75rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--purple-700);
+    background: white;
+    border: 1.5px solid var(--purple-200);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    background: var(--purple-50);
+    border-color: var(--purple-400);
+  }
+
+  /* Card */
+  .card {
+    background: white;
+    border-radius: 1.25rem;
+    border: 1px solid #ede5f7;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .card:hover {
+    box-shadow: 0 6px 24px rgba(107, 63, 176, 0.1);
+    transform: translateY(-2px);
+  }
+
+  /* Section fade-in */
+  .section-enter {
+    animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Floating orb decoration */
+  .orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(60px);
+    pointer-events: none;
+    opacity: 0.35;
+  }
+
+  /* Input field */
+  .input-field {
+    width: 100%;
+    padding: 0.85rem 1rem 0.85rem 2.75rem;
+    border-radius: 0.875rem;
+    border: 1.5px solid #e2d5ff;
+    background: white;
+    font-size: 0.875rem;
+    color: #1a1025;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-field:focus {
+    border-color: #8b62d9;
+    box-shadow: 0 0 0 3px rgba(139, 98, 217, 0.12);
+  }
+  .input-field::placeholder { color: #b0a0c8; }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: #faf7f4; }
+::-webkit-scrollbar-thumb  { background: #c9b3f5; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #9f7dd4; }
