@@ -14,8 +14,8 @@ const AgentJourneySchema = new mongoose.Schema({
   },
   currentAgent: {
     type: String,
-    enum: ['Physical Activity Agent', 'Psychological Support Agent', 'Professional Support Pathway', 'Recovery and Wellness Agent'],
-    required: true
+    required: true,
+    default: 'Recovery and Wellness Agent'
   },
   recommendationReason: {
     type: String,

@@ -79,7 +79,7 @@ export default function App() {
             {/* Authenticated Routes */}
             <Route path="/dashboard" element={<ProtectedRoute user={user}><DashboardPage user={user} /></ProtectedRoute>} />
             <Route path="/report" element={<ProtectedRoute user={user}><WellnessReportPage /></ProtectedRoute>} />
-            <Route path="/journey" element={<ProtectedRoute user={user}><AgentJourneyPage /></ProtectedRoute>} />
+            <Route path="/journey" element={<Navigate to="/dashboard" replace />} />
             <Route path="/progress" element={<ProtectedRoute user={user}><ProgressPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute user={user}><ProfileProgressPage user={user} /></ProtectedRoute>} />
 

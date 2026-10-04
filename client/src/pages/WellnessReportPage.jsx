@@ -87,10 +87,10 @@ export default function WellnessReportPage() {
             <Printer className="w-4 h-4" /> Print / Save PDF
           </button>
           <Link
-            to="/journey"
+            to="/dashboard"
             className="btn-primary text-xs px-4 py-2 flex items-center gap-2"
           >
-            Agent Journey <ArrowRight className="w-4 h-4" />
+            Continue Guided Care <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>

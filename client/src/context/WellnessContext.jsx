@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
+import { generateAgenticPlan } from '../utils/agentPlanGenerator';
 
 const WellnessContext = createContext(null);
 
@@ -73,6 +74,13 @@ export function WellnessProvider({ children, user }) {
   const hasAssessment = !!wellnessData?.result;
   const rwi = recoveryProfile?.recoveryWellnessIndex ?? null;
 
+  // Compute agentic plan flow dynamically from single source of truth
+  const planData = useMemo(() => generateAgenticPlan(wellnessData), [wellnessData]);
+  const agentPlan = planData.plan;
+  const currentPlanStep = planData.currentStep;
+  const nextPlanStep = planData.nextStep;
+  const progressPercent = planData.progressPercent;
+
   const value = {
     // Raw data
     wellnessData,
@@ -94,6 +102,12 @@ export function WellnessProvider({ children, user }) {
     recommendationReason,
     hasAssessment,
     rwi,
+
+    // Agentic Plan Flow
+    agentPlan,
+    currentPlanStep,
+    nextPlanStep,
+    progressPercent,
 
     // Actions
     refresh: fetchAll

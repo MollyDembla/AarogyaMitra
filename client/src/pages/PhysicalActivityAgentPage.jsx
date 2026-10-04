@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Activity, Camera, CheckCircle2, AlertTriangle, FileText, Download,
-  Sparkles, Info, Shield, RefreshCw, Eye, UserCheck, Play, HelpCircle, StopCircle, Video, ArrowRight, Check, XCircle
+  Sparkles, Info, Shield, RefreshCw, Eye, UserCheck, Play, HelpCircle, StopCircle, Video, ArrowRight, Check, XCircle, Lock
 } from 'lucide-react';
 import { MEDICALLY_DESIGNATED_POSES } from '../data/poseData';
 import { evaluatePoseBiomechanics, generateDemoKeypoints, verifyPoseOrientation, MOVENET_KEYPOINT_NAMES } from '../utils/poseEvaluator';
 import { generatePosePDFReport } from '../utils/pdfReportGenerator';
 import { initMoveNetDetector, detectPoseFromVideo } from '../utils/movenetDetector';
+import AgentNavigationHeader from '../components/AgentNavigationHeader';
 import api from '../services/api';
 
 const POSES_FLOW = ['savasana', 'balasana', 'viparita-karani'];
@@ -58,6 +59,9 @@ export default function PhysicalActivityAgentPage() {
   const currentPoseId = POSES_FLOW[Math.min(currentStepIndex, 2)];
   const currentPose = MEDICALLY_DESIGNATED_POSES.find(p => p.id === currentPoseId) || MEDICALLY_DESIGNATED_POSES[0];
   const currentPoseResult = poseResults[currentPoseId];
+
+  // User can always proceed forward in physical activity agent
+  const canProceedNextAgent = true;
 
   // Completely clear canvas overlay (NO synthetic skeleton!)
   const clearOverlay = () => {
@@ -279,6 +283,11 @@ export default function PhysicalActivityAgentPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <AgentNavigationHeader
+        activeKey="physical-activity"
+        canProceed={canProceedNextAgent}
+        cannotProceedReason="Pose accuracy must be ≥ 40% to proceed to next agent"
+      />
 
       {/* ── HEADER ───────────────────────────────────────────────────────── */}
       <div className="bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-6 rounded-3xl border border-teal-800/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -304,11 +313,10 @@ export default function PhysicalActivityAgentPage() {
                   setCurrentStepIndex(idx);
                   clearOverlay();
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  isCurrent
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isCurrent
                     ? 'bg-teal-500 text-slate-950 shadow'
                     : isCompleted ? 'bg-teal-900/60 text-teal-300' : 'text-slate-500'
-                }`}
+                  }`}
               >
                 {isCompleted ? <Check className="w-3.5 h-3.5" /> : <span>{idx + 1}</span>}
                 <span className="capitalize">{pId.replace('-', ' ')}</span>
@@ -349,11 +357,10 @@ export default function PhysicalActivityAgentPage() {
                   <button
                     key={q.id}
                     onClick={() => setFormQualityDemo(q.id)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
-                      formQualityDemo === q.id
+                    className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${formQualityDemo === q.id
                         ? q.id === 'correct' ? 'bg-emerald-600 text-white shadow' : q.id === 'moderate' ? 'bg-amber-500 text-white shadow' : 'bg-rose-600 text-white shadow'
                         : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     {q.label}
                   </button>
@@ -386,7 +393,7 @@ export default function PhysicalActivityAgentPage() {
                   </div>
 
                   <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 aspect-square flex items-center justify-center">
-                    
+
                     {/* Clean Camera OFF Placeholder (NO synthetic skeleton!) */}
                     {!cameraActive && (
                       <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 my-auto z-10">
@@ -467,22 +474,38 @@ export default function PhysicalActivityAgentPage() {
                   <p className="text-xs text-slate-500">Individual Biomechanical Performance Metrics</p>
                 </div>
                 <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border ${
-                  currentPoseResult.badgeColor === 'emerald' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                  currentPoseResult.badgeColor === 'amber' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-rose-100 text-rose-800 border-rose-200'
+                  currentPoseResult.overallAccuracy >= 70 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                  currentPoseResult.overallAccuracy >= 40 ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                  'bg-rose-100 text-rose-800 border-rose-200'
                 }`}>
                   {currentPoseResult.formGrade}
                 </span>
               </div>
 
+              {/* High-visibility alert when accuracy is below 40% */}
+              {currentPoseResult.overallAccuracy < 40 && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 font-bold text-xs flex items-center gap-3 shadow-sm">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                  <span>
+                    Accuracy score is <strong>{currentPoseResult.overallAccuracy}%</strong> (below required 40% threshold). Please reposition yourself on the mat and click <strong>"Re-evaluate {currentPose.name} 🔄"</strong> below to retry posture alignment before advancing.
+                  </span>
+                </div>
+              )}
+
               <div className="grid md:grid-cols-3 gap-6">
                 <div className={`p-5 rounded-2xl flex flex-col justify-between ${
-                  currentPoseResult.overallAccuracy < 30 ? 'bg-gradient-to-r from-slate-900 to-rose-950 text-white' : 'bg-gradient-to-r from-slate-900 to-teal-950 text-white'
+                  currentPoseResult.overallAccuracy < 40 ? 'bg-gradient-to-r from-slate-900 to-rose-950 text-white' : 'bg-gradient-to-r from-slate-900 to-teal-950 text-white'
                 }`}>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-teal-300">Pose Accuracy Score</span>
                   <div className="text-4xl font-black text-white my-2 font-heading">{currentPoseResult.overallAccuracy}%</div>
                   <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                    <div className={`h-full ${currentPoseResult.overallAccuracy < 30 ? 'bg-rose-500' : 'bg-teal-400'}`} style={{ width: `${currentPoseResult.overallAccuracy}%` }} />
+                    <div className={`h-full ${currentPoseResult.overallAccuracy < 40 ? 'bg-rose-500' : 'bg-teal-400'}`} style={{ width: `${currentPoseResult.overallAccuracy}%` }} />
                   </div>
+                  {currentPoseResult.overallAccuracy < 40 && (
+                    <p className="text-[11px] text-rose-300 font-bold mt-2">
+                      ⚠️ Minimum 40% accuracy required to unlock next exercise.
+                    </p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2 space-y-3">
@@ -490,9 +513,9 @@ export default function PhysicalActivityAgentPage() {
                   <div className="space-y-2">
                     {currentPoseResult.feedbackList.map((item, idx) => (
                       <div key={idx} className={`p-3 rounded-xl text-xs font-medium flex items-start gap-2.5 border ${
-                        currentPoseResult.overallAccuracy < 30 ? 'bg-rose-50 border-rose-200 text-rose-950 font-bold' : 'bg-purple-50/60 border-purple-100 text-purple-950'
+                        currentPoseResult.overallAccuracy < 40 ? 'bg-rose-50 border-rose-200 text-rose-950 font-bold' : 'bg-purple-50/60 border-purple-100 text-purple-950'
                       }`}>
-                        {currentPoseResult.overallAccuracy < 30 ? <XCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" /> : <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />}
+                        {currentPoseResult.overallAccuracy < 40 ? <XCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" /> : <CheckCircle2 className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />}
                         <span>{item}</span>
                       </div>
                     ))}
@@ -500,15 +523,21 @@ export default function PhysicalActivityAgentPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              {/* Action Buttons: Re-evaluate Pose Option + Continue Forward */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <button
+                  onClick={() => {
+                    setPoseResults(prev => ({ ...prev, [currentPoseId]: null }));
+                    handleStartCamera();
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 border border-slate-300 shadow-sm cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4 text-teal-700" /> Re-evaluate {currentPose.name} 🔄
+                </button>
+
                 <button
                   onClick={handleNextStep}
-                  disabled={currentPoseResult.overallAccuracy < 30}
-                  className={`px-6 py-3 font-bold text-sm rounded-xl transition-all shadow-md flex items-center gap-2 ${
-                    currentPoseResult.overallAccuracy < 30
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white'
-                  }`}
+                  className="w-full sm:w-auto px-6 py-3 font-extrabold text-xs rounded-xl transition-all shadow-md bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {currentStepIndex < 2 ? `Continue to ${POSES_FLOW[currentStepIndex + 1].replace('-', ' ')}` : 'Generate Overall Session Report'}
                   <ArrowRight className="w-4 h-4" />

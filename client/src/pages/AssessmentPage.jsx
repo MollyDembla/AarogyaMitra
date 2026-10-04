@@ -69,7 +69,6 @@ const PHQ9_QUESTIONS = [
   'Feeling bad about yourself — or that you are a failure, or have let yourself or your family down',
   'Trouble concentrating on things, such as reading the newspaper or watching television',
   'Moving or speaking so slowly that other people could have noticed. Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual',
-  'Thoughts that you would be better off dead, or of hurting yourself in some way',
 ];
 
 const STEPS = [
@@ -163,7 +162,7 @@ const STEPS = [
 
     // Step 11: PHQ-9 (undefined by default so options are not pre-selected)
     PHQ9_Q1: undefined, PHQ9_Q2: undefined, PHQ9_Q3: undefined, PHQ9_Q4: undefined, PHQ9_Q5: undefined,
-    PHQ9_Q6: undefined, PHQ9_Q7: undefined, PHQ9_Q8: undefined, PHQ9_Q9: undefined,
+    PHQ9_Q6: undefined, PHQ9_Q7: undefined, PHQ9_Q8: undefined,
   });
 
   // Prefill profile data if already saved in profile page
@@ -223,7 +222,7 @@ const STEPS = [
       }
     }
     if (step === 11) {
-      for (let i = 1; i <= 9; i++) {
+      for (let i = 1; i <= 8; i++) {
         if (formData[`PHQ9_Q${i}`] === undefined) return 'Please answer all PHQ-9 questions before submitting.';
       }
     }
@@ -1170,18 +1169,12 @@ const STEPS = [
 
               {PHQ9_QUESTIONS.map((q, idx) => {
                 const key = `PHQ9_Q${idx + 1}`;
-                const isSafetyQ = idx === 8;
                 return (
                   <div
                     key={key}
-                    className={`p-4 rounded-xl space-y-2 border ${
-                      isSafetyQ
-                        ? 'bg-rose-950/30 border-rose-500/50'
-                        : 'bg-slate-900/60 border-slate-700/50'
-                    }`}
+                    className="p-4 rounded-xl space-y-2 border bg-slate-900/60 border-slate-700/50"
                   >
-                    <p className={`text-sm font-semibold ${isSafetyQ ? 'text-rose-300 flex items-center gap-2' : 'text-white'}`}>
-                      {isSafetyQ && <ShieldAlert className="w-4 h-4 text-rose-400" />}
+                    <p className="text-sm font-semibold text-white">
                       {idx + 1}. {q}
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -1192,7 +1185,7 @@ const STEPS = [
                           onClick={() => handleChange(key, opt.value)}
                           className={`px-3 py-2 text-xs rounded-lg border transition-all text-center ${
                             formData[key] === opt.value
-                              ? isSafetyQ ? 'bg-rose-600 text-white border-rose-400 font-bold' : 'bg-purple-600 text-white border-purple-500 font-bold'
+                              ? 'bg-purple-600 text-white border-purple-500 font-bold'
                               : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
                           }`}
                         >

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Phone, UserCheck, Heart, Info, AlertTriangle, CheckCircle2, ArrowRight, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';
 import { useWellness } from '../context/WellnessContext';
+import AgentNavigationHeader from '../components/AgentNavigationHeader';
 
 const CARE_LEVEL_CONFIG = {
   1: { color: '#16a34a', bg: '#f0fdf4', border: '#86efac', icon: CheckCircle2, label: 'Wellness Support' },
@@ -108,6 +109,7 @@ export default function ProfessionalSupportPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-7 pb-8">
+      <AgentNavigationHeader activeKey="professional-support" />
       {/* Header Banner */}
       <div className="rounded-3xl overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${careCfg.color}20, ${careCfg.color}05)`, border: `1.5px solid ${careCfg.border}` }}>

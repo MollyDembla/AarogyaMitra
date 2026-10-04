@@ -80,7 +80,7 @@ export default function DashboardPage({ user }) {
     wellnessData, loading, hasAssessment,
     mmwbi, domainScores, wellnessCategory,
     primaryConcerns, strengths, currentAgent,
-    recommendationReason, rwi
+    recommendationReason, rwi, psychometricScores
   } = useWellness();
 
   if (loading) {
@@ -141,9 +141,9 @@ export default function DashboardPage({ user }) {
     : 'Recent';
   const agentRoute = currentAgent?.toLowerCase().includes('recovery') ? '/agent/recovery-wellness'
     : currentAgent?.toLowerCase().includes('psycho') ? '/agent/psychological-support'
-    : currentAgent?.toLowerCase().includes('physical') ? '/agent/physical-activity'
-    : currentAgent?.toLowerCase().includes('professional') ? '/agent/professional-support'
-    : '/agent/recovery-wellness';
+      : currentAgent?.toLowerCase().includes('physical') ? '/agent/physical-activity'
+        : currentAgent?.toLowerCase().includes('professional') ? '/agent/professional-support'
+          : '/agent/recovery-wellness';
 
   return (
     <div className="space-y-7 pb-8">
@@ -223,38 +223,138 @@ export default function DashboardPage({ user }) {
           </div>
         </div>
 
-        {/* Reasoning Engine Recommendation */}
-        <div className="lg:col-span-2 card p-6 flex flex-col justify-between space-y-5">
+        {/* Stateful LangGraph Health Assistant Guide & Dynamic Journey */}
+        <div className="lg:col-span-2 card p-6 flex flex-col justify-between space-y-5"
+          style={{ background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', border: '1px solid #e9d8fd' }}>
+          
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#f5f0fb' }}>
-                <Sparkles className="w-4 h-4" style={{ color: '#6b3fb0' }} />
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: '#6b3fb0' }}>
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-sm" style={{ color: '#6b3fb0' }}>Reasoning Engine Pathway</span>
+              <span className="font-bold text-sm" style={{ color: '#6b3fb0' }}>LangGraph State Orchestrator</span>
             </div>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: '#f5f0fb', color: '#6b3fb0', border: '1px solid #ede5f7' }}>
-              Recommended Next
+            <span className="text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-200">
+              Dynamic State Recommendation
             </span>
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-2xl font-black font-heading" style={{ color: '#1a0b35' }}>{currentAgent || 'Recovery & Wellness Agent'}</h3>
+          <div className="space-y-4">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                Current Recommended Step
+              </span>
+              <h3 className="text-2xl font-black font-heading mt-1.5" style={{ color: '#1a0b35' }}>
+                {currentAgent || 'Recovery & Wellness Agent'}
+              </h3>
+            </div>
 
-            <div className="p-4 rounded-2xl border flex items-start gap-3"
-              style={{ background: '#f8f5ff', borderColor: '#e8e0f8' }}>
-              <HelpCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#7c3aed' }} />
+            {/* LangGraph State Analysis Rationale */}
+            <div className="p-4 rounded-2xl border flex items-start gap-3 bg-white border-purple-100 shadow-sm">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#7c3aed' }} />
               <div>
-                <p className="text-xs font-bold mb-1" style={{ color: '#5b21b6' }}>Why recommended right now:</p>
-                <p className="text-xs leading-relaxed" style={{ color: '#4c1d95' }}>
-                  {recommendationReason || report?.recommendedNextStep || 'Based on your wellness assessment, visiting your assigned specialized agent will help address your primary concerns.'}
+                <p className="text-xs font-bold mb-1" style={{ color: '#5b21b6' }}>LangGraph State Evaluation Rationale:</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
+                  {recommendationReason || report?.recommendedNextStep || 'LangGraph state engine analyzed health metrics and dynamically assigned this node as your immediate priority.'}
                 </p>
+              </div>
+            </div>
+
+            {/* Dynamic Executed Journey History with Real Scores */}
+            <div className="pt-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>
+                  Executed Journey History & Scores
+                </p>
+                <span className="text-[10px] font-semibold text-purple-600">
+                  Real-time LangGraph Journey
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                {/* Step 1: Multimodal Assessment (Always Completed) */}
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center gap-2 shadow-sm">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold text-[11px] block">1. Assessment</span>
+                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      Score: {mmwbi ? `${mmwbi.toFixed(0)}/100 MMWBI` : 'Completed'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Deduplicated Completed Agents from Journey State */}
+                {(() => {
+                  const rawCompleted = wellnessData?.journey?.completedAgents || [];
+                  const seen = new Set(['wellness_assessment', 'assessment']);
+                  const uniqueList = [];
+
+                  rawCompleted.forEach(a => {
+                    const str = String(a).toLowerCase();
+                    let key = a;
+                    if (str.includes('professional') || str.includes('care')) key = 'Professional Care';
+                    else if (str.includes('psycho')) key = 'Psychological Support';
+                    else if (str.includes('physic')) key = 'Physical Activity';
+                    else if (str.includes('recovery')) key = 'Recovery & Wellness';
+
+                    if (key !== 'wellness_assessment' && !seen.has(key)) {
+                      seen.add(key);
+                      uniqueList.push({ name: key, raw: a });
+                    }
+                  });
+
+                  return uniqueList.map((item, idx) => {
+                    let scoreLabel = 'Completed';
+                    const lowerName = item.name.toLowerCase();
+                    if (lowerName.includes('recovery') && rwi) {
+                      scoreLabel = `RWI: ${rwi}/100`;
+                    } else if (lowerName.includes('psycho') && psychometricScores?.who5?.score) {
+                      scoreLabel = `WHO-5: ${psychometricScores.who5.score}/100`;
+                    } else if (lowerName.includes('physical')) {
+                      scoreLabel = 'Pose Acc: Evaluated';
+                    }
+
+                    return (
+                      <div key={idx} className="p-2.5 rounded-xl bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center gap-2 shadow-sm">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <div>
+                          <span className="font-bold text-[11px] block">{item.name}</span>
+                          <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            Score: {scoreLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+
+                {/* Current Ongoing Agent */}
+                {currentAgent && currentAgent !== 'Journey Complete' && (
+                  <div className="p-2.5 rounded-xl bg-purple-600 text-white font-bold flex items-center gap-2 shadow-md">
+                    <Sparkles className="w-4 h-4 text-purple-200 animate-spin flex-shrink-0" />
+                    <div>
+                      <span className="font-bold text-[11px] block">{currentAgent.replace(' Agent', '')}</span>
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-1.5 py-0.5 rounded">
+                        Active Step (In Progress)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dynamic Future Steps Notice - No Pre-Decided Steps */}
+              <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200 text-purple-900 text-[11px] flex items-center gap-2 mt-2">
+                <RotateCcw className="w-3.5 h-3.5 text-purple-600 flex-shrink-0 animate-spin" />
+                <span>
+                  <strong>Next Agent Step:</strong> LangGraph state engine will reassess health outputs after this node to recommend the next step.
+                </span>
               </div>
             </div>
           </div>
 
           <Link to={agentRoute}
-            className="btn-primary inline-flex w-fit text-sm">
-            Go to Agent <ArrowRight className="w-4 h-4" />
+            className="btn-primary inline-flex w-full sm:w-fit text-sm items-center justify-center gap-2 py-3 px-6 shadow-md mt-2">
+            Start Recommended Step ({currentAgent || 'Recovery Agent'}) <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>

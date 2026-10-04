@@ -5,6 +5,7 @@ import { useWellness } from '../context/WellnessContext';
 import VoiceInterface from '../components/psych/VoiceInterface';
 import MoodTracker from '../components/psych/MoodTracker';
 import CrisisOverlay from '../components/psych/CrisisOverlay';
+import AgentNavigationHeader from '../components/AgentNavigationHeader';
 
 const JOURNAL_PROMPTS = [
   'How am I feeling right now, and what might be contributing to this?',
@@ -169,6 +170,7 @@ export default function PsychologicalSupportAgentPage() {
       {showCrisis && <CrisisOverlay onDismiss={() => setShowCrisis(false)} />}
 
       <div className="max-w-6xl mx-auto space-y-5 pb-8">
+        <AgentNavigationHeader activeKey="psychological-support" />
         {/* Header */}
         <div className="flex items-start justify-between gap-4 p-5 rounded-2xl"
           style={{ background: 'linear-gradient(135deg, #f5f0fb, #ede5f7)', border: '1px solid #c9b3f5' }}>

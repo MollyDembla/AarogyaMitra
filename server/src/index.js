@@ -16,6 +16,7 @@ import journeyRoutes from './routes/journey.js';
 import agentsRoutes from './routes/agents.js';
 import recoveryRoutes from './routes/recovery.js';
 import psychRoutes from './routes/psych.js';
+import langgraphRoutes from './routes/langgraph.js';
 
 const app = express();
 
@@ -38,6 +39,9 @@ app.use('/api/journey', journeyRoutes);
 app.use('/api/agents', agentsRoutes);
 app.use('/api/recovery', recoveryRoutes);
 app.use('/api/psych', psychRoutes);
+app.use('/api/langgraph', langgraphRoutes);
+app.use('/api/agentic', langgraphRoutes);
+app.use('/api/physical-activity', agentsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

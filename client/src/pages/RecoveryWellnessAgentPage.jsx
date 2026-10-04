@@ -7,6 +7,7 @@ import {
 import { generateRecoveryPlan, getLatestProfile, submitFeedback, getHistory } from '../services/recoveryService';
 import BreathingCorner from '../components/recovery/BreathingCorner';
 import MeditationCorner from '../components/recovery/MeditationCorner';
+import AgentNavigationHeader from '../components/AgentNavigationHeader';
 
 // ── Dimension meta ────────────────────────────────────────────────────────────
 const DIMENSION_META = [
@@ -474,6 +475,7 @@ export default function RecoveryWellnessAgentPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <AgentNavigationHeader activeKey="recovery-wellness" />
 
       {/* ── SECTION 1: Agent Header ──────────────────────────────────────── */}
       <div className="bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-6 rounded-3xl border border-teal-800/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">

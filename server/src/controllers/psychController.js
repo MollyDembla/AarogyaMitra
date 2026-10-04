@@ -67,15 +67,40 @@ export const sendMessage = async (req, res, next) => {
     session.professionalSupportRecommended = agentOutput.showProfessionalSuggestion || false;
     session.suggestedActivities = agentOutput.suggestedActivities;
     session.currentEmotionalState = agentOutput.emotionalState;
-    if (agentOutput.identifiedConcerns?.length > 0) {
-      session.identifiedConcerns = agentOutput.identifiedConcerns;
-    }
-
     await session.save();
+
+    // Dynamically update AgentJourney based on agent output
+    if (journey) {
+      if (agentOutput.safetyFlag || agentOutput.riskLevel === 'crisis' || agentOutput.riskLevel === 'high') {
+        journey.currentAgent = 'Professional Support Pathway';
+        journey.recommendationReason = 'Safety evaluation detected elevated psychological distress during conversation. Immediate professional care navigation is prioritized.';
+        if (!journey.completedAgents.includes('Psychological Support Agent')) {
+          journey.completedAgents.push('Psychological Support Agent');
+        }
+      } else {
+        if (!journey.completedAgents.includes('Psychological Support Agent')) {
+          journey.completedAgents.push('Psychological Support Agent');
+        }
+        // Determine dynamic next step: Physical Activity if not completed, or Wellness Plan
+        if (!journey.completedAgents.includes('Physical Activity Agent')) {
+          journey.currentAgent = 'Physical Activity Agent';
+          journey.recommendationReason = 'Psychological support session completed safely. Physical Activity posture alignment is recommended next.';
+        } else if (!journey.completedAgents.includes('Recovery and Wellness Agent')) {
+          journey.currentAgent = 'Recovery and Wellness Agent';
+          journey.recommendationReason = 'Psychological support session completed safely. Recovery routine planning is recommended next.';
+        } else {
+          journey.currentAgent = 'Wellness Plan Generator';
+          journey.status = 'completed';
+          journey.recommendationReason = 'All agent interactions completed safely. Your personalized wellness plan is synthesized.';
+        }
+      }
+      await journey.save();
+    }
 
     return apiResponse.success(res, 'Message processed', {
       sessionId: session._id,
       agentOutput,
+      journey,
       sessionNumber: session.sessionNumber
     });
   } catch (error) {

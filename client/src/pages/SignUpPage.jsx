@@ -135,25 +135,52 @@ export default function SignUpPage({ onLoginSuccess }) {
 
             {/* Email */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-widest text-purple-700">Email Address</label>
+              <label htmlFor="signup-email" className="block text-xs font-bold uppercase tracking-widest text-purple-700">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#9f7dd4' }} />
-                <input id="signup-email" type="email" required value={form.email} onChange={set('email')}
-                  placeholder="you@example.com" className="input-field" style={{ paddingLeft: '2.75rem' }} />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10" style={{ color: '#9f7dd4' }} />
+                <input
+                  id="signup-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={form.email}
+                  onChange={set('email')}
+                  placeholder="you@example.com"
+                  className="input-field pl-11"
+                />
               </div>
             </div>
 
             {/* Password */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-widest text-purple-700">Password</label>
+              <label htmlFor="signup-password" className="block text-xs font-bold uppercase tracking-widest text-purple-700">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#9f7dd4' }} />
-                <input id="signup-password" type={showPwd ? 'text' : 'password'} required minLength={6}
-                  value={form.password} onChange={set('password')} placeholder="Min. 6 characters"
-                  className="input-field pr-11" style={{ paddingLeft: '2.75rem' }} />
-                <button type="button" onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-purple-500">
-                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10" style={{ color: '#9f7dd4' }} />
+                <input
+                  id="signup-password"
+                  name="password"
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={set('password')}
+                  placeholder="Enter your password (min 6 chars)"
+                  className="input-field pl-11 pr-12 text-slate-900 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setShowPwd(v => !v);
+                  }}
+                  title={showPwd ? "Hide password" : "Show password"}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 p-1.5 rounded-lg transition-all z-20 cursor-pointer border border-purple-100"
+                  tabIndex="-1"
+                  aria-label={showPwd ? "Hide password" : "Show password"}
+                >
+                  {showPwd ? <EyeOff className="w-4 h-4 text-purple-700" /> : <Eye className="w-4 h-4 text-purple-500" />}
                 </button>
               </div>
               {/* Password hints */}

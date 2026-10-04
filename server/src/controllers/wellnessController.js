@@ -9,7 +9,9 @@ import ProgressRecord from '../models/ProgressRecord.js';
 import AgentJourney from '../models/AgentJourney.js';
 import { runWellnessAssessmentAgent } from '../agents/wellnessAssessment/index.js';
 import { runReasoningAgent } from '../agents/reasoningDecision/index.js';
+import { runLangGraphWorkflow } from '../langgraph/runner.js';
 import { generateWellnessReport } from '../services/reportGenerator.js';
+import { analyzeDomainPriorities } from '../rules/routingRules.js';
 import { apiResponse } from '../utils/apiResponse.js';
 
 export const evaluateWellness = async (req, res, next) => {
@@ -181,41 +183,45 @@ export const evaluateWellness = async (req, res, next) => {
       recommendedNextStep: reportText.recommendedNextStep
     });
 
-    // 3. Pass Full Report & Domain Scores to Reasoning and Decision-Making Agent
-    const reasoningContext = {
-      report: wellnessReport,
-      reportText: reportText,
-      wellnessScore: agentOutput.mmwbi,
-      wellnessCategory: agentOutput.riskLevel,
-      riskLevel: agentOutput.riskLevel,
-      mmwbi: agentOutput.mmwbi,
-      domainScores: agentOutput.domainScores,
-      psychometricScores: agentOutput.psychometricScores,
-      attentionFlags: agentOutput.attentionFlags || [],
-      safetyFlags: agentOutput.safetyFlags || [],
-      primaryConcerns: agentOutput.primaryConcerns || [],
-      physicalLimitations: [payload.Physical_Limitation].filter(l => l && l !== 'None'),
-      rawFeaturePayload: agentOutput.rawFeaturePayload,
-      completedAgents: []
-    };
-    const decision = await runReasoningAgent(reasoningContext);
-
-    // 4. Create or update AgentJourney
-    let journey = await AgentJourney.findOne({ user: req.user.id, status: 'in_progress' }).sort({ createdAt: -1 });
-    if (!journey) {
-      journey = await AgentJourney.create({
-        user: req.user.id,
-        assessment: assessmentDoc._id,
-        currentAgent: decision.primaryAgent,
-        recommendationReason: decision.reason,
-        status: 'in_progress',
-        completedAgents: []
+    // 3. Invoke LangGraph Orchestration Engine
+    let langgraphResult = null;
+    try {
+      langgraphResult = await runLangGraphWorkflow({
+        sessionId: `lg_session_${assessmentDoc._id}_${Date.now()}`,
+        userId: req.user.id,
+        userName: req.user.name || req.user.email || 'User',
+        assessmentData: payload,
+        assessmentId: assessmentDoc._id,
+        wellnessResultId: wellnessResult._id
       });
-    } else {
-      journey.currentAgent = decision.primaryAgent;
-      journey.recommendationReason = decision.reason;
-      await journey.save();
+    } catch (lgErr) {
+      console.error('LangGraph orchestration invocation error:', lgErr);
     }
+
+    // 4. Create fresh AgentJourney for this new assessment evaluation
+    await AgentJourney.updateMany(
+      { user: req.user.id, status: 'in_progress' },
+      { status: 'completed' }
+    );
+
+    // Analyze domain priorities (lowest domain score = highest recommendation priority)
+    const initialPriorities = analyzeDomainPriorities(agentOutput.domainScores);
+    let primaryAgent = initialPriorities[0]?.targetAgent || 'Psychological Support Agent';
+    let reason = `Assessment analysis identified ${initialPriorities[0]?.name} (${initialPriorities[0]?.score}/100) as your primary focus area.`;
+
+    if (agentOutput.safetyFlags && agentOutput.safetyFlags.length > 0) {
+      primaryAgent = 'Professional Support Pathway';
+      reason = agentOutput.safetyFlags[0].message || 'Safety screening indicates elevated distress.';
+    }
+
+    const journey = await AgentJourney.create({
+      user: req.user.id,
+      assessment: assessmentDoc._id,
+      currentAgent: primaryAgent,
+      recommendationReason: reason,
+      status: 'in_progress',
+      completedAgents: ['wellness_assessment']
+    });
 
     // Save Progress record log
     await ProgressRecord.create({
@@ -230,8 +236,8 @@ export const evaluateWellness = async (req, res, next) => {
       result: wellnessResult,
       report: wellnessReport,
       journey,
-      decision,
-      agentOutput
+      agentOutput,
+      langgraph: langgraphResult
     });
   } catch (error) {
     console.error('Error in evaluateWellness:', error);

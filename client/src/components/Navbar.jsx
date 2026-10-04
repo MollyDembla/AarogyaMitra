@@ -11,7 +11,7 @@ export default function Navbar({ user, onLogout }) {
 
   const navItems = [
     { label: 'Dashboard',     path: '/dashboard',  icon: LayoutDashboard },
-    { label: 'Agent Journey', path: '/journey',     icon: Compass },
+    { label: 'My Report',     path: '/report',     icon: HeartPulse },
     { label: 'Profile',       path: '/profile',     icon: User },
   ];
 
