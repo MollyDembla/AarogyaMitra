@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { HeartPulse, LayoutDashboard, Compass, User, LogOut, Menu, X } from 'lucide-react';
+import { HeartPulse, LayoutDashboard, Compass, User, LogOut, Menu, X, ShieldCheck } from 'lucide-react';
+
 
 import logoImg from '../assets/AarogyaMitra logo.png';
 
@@ -83,6 +84,8 @@ export default function Navbar({ user, onLogout }) {
                   Get Started
                 </Link>
               </div>
+
+
             )}
           </div>
         </div>

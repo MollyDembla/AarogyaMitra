@@ -17,6 +17,7 @@ import agentsRoutes from './routes/agents.js';
 import recoveryRoutes from './routes/recovery.js';
 import psychRoutes from './routes/psych.js';
 import langgraphRoutes from './routes/langgraph.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use(morgan('dev'));
 
 // Routing mappings
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/assessment', assessmentRoutes);
 app.use('/api/wellness', wellnessRoutes);
@@ -42,6 +44,7 @@ app.use('/api/psych', psychRoutes);
 app.use('/api/langgraph', langgraphRoutes);
 app.use('/api/agentic', langgraphRoutes);
 app.use('/api/physical-activity', agentsRoutes);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

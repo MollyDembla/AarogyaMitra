@@ -3,6 +3,7 @@ import { Shield, Phone, UserCheck, Heart, Info, AlertTriangle, CheckCircle2, Arr
 import api from '../services/api';
 import { useWellness } from '../context/WellnessContext';
 import AgentNavigationHeader from '../components/AgentNavigationHeader';
+import InactivityTimerBanner from '../components/InactivityTimerBanner';
 
 const CARE_LEVEL_CONFIG = {
   1: { color: '#16a34a', bg: '#f0fdf4', border: '#86efac', icon: CheckCircle2, label: 'Wellness Support' },
@@ -70,7 +71,7 @@ function PlatformCard({ resource }) {
 }
 
 export default function ProfessionalSupportPage() {
-  const { wellnessData, mmwbi, domainScores, psychometricScores, primaryConcerns } = useWellness();
+  const { wellnessData, mmwbi, domainScores, psychometricScores, primaryConcerns, activeSessionId } = useWellness();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedStep, setExpandedStep] = useState(null);
@@ -82,6 +83,18 @@ export default function ProfessionalSupportPage() {
         const res = await api.post('/agents/professional-support/evaluate', {});
         if (res.success) {
           setData(res.data.agentOutput || res.data.outputData || res.data);
+
+          // Notify LangGraph engine that professional_care step is completed
+          try {
+            await api.post('/langgraph/resume', {
+              userActionResult: {
+                agentName: 'professional_care',
+                status: 'completed'
+              }
+            });
+          } catch (lErr) {
+            console.warn('LangGraph resume warning:', lErr);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -109,6 +122,7 @@ export default function ProfessionalSupportPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-7 pb-8">
+      <InactivityTimerBanner agentName="professional_care" sessionId={activeSessionId} />
       <AgentNavigationHeader activeKey="professional-support" />
       {/* Header Banner */}
       <div className="rounded-3xl overflow-hidden"

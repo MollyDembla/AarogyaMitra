@@ -43,29 +43,14 @@ export async function reassessmentNode(state) {
     };
   }
 
-  // ── Check which agents still need to run ─────────────────────────────
-  const priorities = analyzeDomainPriorities(domainScores);
-  const observations = [];
-  const stillNeeded = [];
+  // ── Check which core agents still need to run ─────────────────────────────
+  const coreAgents = [
+    'Recovery and Wellness Agent',
+    'Physical Activity Agent',
+    'Psychological Support Agent'
+  ];
 
-  // Check recovery
-  if (domainScores.recoveryWellness < 50 && !completed.includes('Recovery and Wellness Agent')) {
-    observations.push(`Recovery score (${domainScores.recoveryWellness?.toFixed(0)}/100) still below threshold`);
-    stillNeeded.push('Recovery and Wellness Agent');
-  }
-
-  // Check psychological — stress still elevated after recovery
-  if (domainScores.stressResilience < 45 && !completed.includes('Psychological Support Agent')) {
-    observations.push(`Stress resilience (${domainScores.stressResilience?.toFixed(0)}/100) remains elevated`);
-    stillNeeded.push('Psychological Support Agent');
-    logger.info(`${tag} Elevated stress detected — Psychological Support still needed`);
-  }
-
-  // Check physical
-  if (domainScores.physicalHealth < 45 && !completed.includes('Physical Activity Agent')) {
-    observations.push(`Physical health (${domainScores.physicalHealth?.toFixed(0)}/100) requires attention`);
-    stillNeeded.push('Physical Activity Agent');
-  }
+  const stillNeeded = coreAgents.filter(a => !completed.includes(a));
 
   // Check if recovery output has alertness flag → needs care
   const recoveryAlertness = state.recoveryWellness?.flags?.includes('ALERTNESS_SAFETY_FLAG');
@@ -75,13 +60,9 @@ export async function reassessmentNode(state) {
   }
 
   // ── Determine journey completion ──────────────────────────────────────
-  const hasEnoughAgents = completed.filter(a =>
-    ['Recovery and Wellness Agent', 'Physical Activity Agent', 'Psychological Support Agent'].includes(a)
-  ).length >= 1;
+  const isComplete = stillNeeded.length === 0;
 
-  const isComplete = stillNeeded.length === 0 && hasEnoughAgents;
-
-  logger.info(`${tag} Observations: ${observations.join('; ') || 'All thresholds met'}`);
+  logger.info(`${tag} Observations: ${observations.join('; ') || 'All core agent activities evaluated'}`);
   logger.info(`${tag} Still needed: ${stillNeeded.join(', ') || 'none'}`);
   logger.info(`${tag} Complete: ${isComplete}`);
 
@@ -131,18 +112,21 @@ export function routeAfterReassessment(state) {
   }
 
   const completed = state.completedAgents || [];
-  const domainScores = state.domainScores || {};
 
-  // Check if any agent still needs to run
-  const needsRecovery = domainScores.recoveryWellness < 50 && !completed.includes('Recovery and Wellness Agent');
-  const needsPsych = domainScores.stressResilience < 45 && !completed.includes('Psychological Support Agent');
-  const needsPhysical = domainScores.physicalHealth < 45 && !completed.includes('Physical Activity Agent');
+  const coreAgents = [
+    'Recovery and Wellness Agent',
+    'Physical Activity Agent',
+    'Psychological Support Agent'
+  ];
 
-  if (needsRecovery || needsPsych || needsPhysical) {
-    logger.info(`${tag} → reasoning_router (more agents needed)`);
+  const remainingAgents = coreAgents.filter(a => !completed.includes(a));
+
+  if (remainingAgents.length > 0) {
+    logger.info(`${tag} → reasoning_router (${remainingAgents.length} agents remaining: ${remainingAgents.join(', ')})`);
     return 'reasoning_router';
   }
 
-  logger.info(`${tag} → wellness_plan`);
+  logger.info(`${tag} → wellness_plan (all 3 core agents completed)`);
   return 'wellness_plan';
 }
+

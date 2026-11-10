@@ -339,22 +339,34 @@ const STEPS = [
           try { await refreshContext(); } catch (rCtxErr) { console.warn('Context refresh warning:', rCtxErr); }
         }
 
-        // Evaluate Reasoning Decision Agent
-        let journeyData = null;
+        // Start LangGraph workflow so Decision-Making Agent determines the first specialized agent
+        let lgRes = null;
         try {
-          const reasoningRes = await api.post('/reasoning/next-action', {
-            wellnessResult: resData.result,
-            completedAgents: []
+          lgRes = await api.post('/langgraph/start-session', {
+            assessmentData: payload,
+            assessmentId: resData?.result?._id || resData?._id
           });
-          journeyData = reasoningRes?.data || reasoningRes?.data?.data;
-        } catch (rErr) {
-          console.warn('Reasoning decision fetch non-fatal error:', rErr);
+        } catch (lErr) {
+          console.warn('LangGraph session start warning:', lErr);
         }
 
-        navigate('/report', { state: { wellnessData: resData, journey: journeyData } });
+        const lgState = lgRes?.data?.state || lgRes?.state;
+        const targetAgent = lgState?.activeAgent || lgState?.nextAction;
+
+        const AGENT_ROUTE_MAP = {
+          wellness_assessment: '/assessment',
+          recovery_wellness: '/agent/recovery-wellness',
+          physical_activity: '/agent/physical-activity',
+          psychological_support: '/agent/psychological-support',
+          professional_care: '/agent/professional-support',
+          wellness_plan: '/report'
+        };
+
+        navigate('/dashboard');
       } else {
         setErrorMsg(response?.message || 'Failed to process assessment evaluation.');
       }
+
     } catch (err) {
       console.error('Assessment submission error:', err);
       setErrorMsg(err.response?.data?.message || 'Error submitting assessment. Please try again.');

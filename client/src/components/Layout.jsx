@@ -14,13 +14,15 @@ const ONBOARDING_PAGES = ['/onboarding', '/assessment', '/assessment-progress'];
 
 export default function Layout({ children, user, onLogout }) {
   const location = useLocation();
+  const isAdmin = user?.role === 'admin' || user?.email === 'admin@aarogyamitra.com' || location.pathname.startsWith('/admin');
   const isPublic = PUBLIC_PAGES.includes(location.pathname);
   const isFullBleed = FULL_BLEED.includes(location.pathname);
-  const isOnboarding = ONBOARDING_PAGES.includes(location.pathname);
-  const isAuthenticated = !!user;
+  const isOnboarding = !isAdmin && ONBOARDING_PAGES.includes(location.pathname);
+  const isAuthenticated = !!user || isAdmin;
 
-  // Onboarding Assessment Layout (no sidebar, clean focused header)
+  // Onboarding Assessment Layout (no sidebar, clean focused header for standard users only)
   if (isAuthenticated && isOnboarding) {
+
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#faf7f4' }}>
         <header className="h-16 flex items-center justify-between px-6 sm:px-10 border-b bg-white/90 backdrop-blur-md sticky top-0 z-30 shadow-sm"
@@ -43,8 +45,14 @@ export default function Layout({ children, user, onLogout }) {
               </span>
             </div>
             <button
-              onClick={onLogout}
-              className="text-xs font-semibold text-slate-600 hover:text-rose-600 transition-colors px-3.5 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50"
+              onClick={(e) => {
+                if (e) e.preventDefault();
+                localStorage.removeItem('token');
+                localStorage.removeItem('adminToken');
+                if (onLogout) onLogout();
+                window.location.href = '/login';
+              }}
+              className="text-xs font-semibold text-slate-600 hover:text-rose-600 transition-colors px-3.5 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50 cursor-pointer"
             >
               Sign Out
             </button>

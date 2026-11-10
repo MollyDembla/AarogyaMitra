@@ -17,6 +17,22 @@ const AgentJourneySchema = new mongoose.Schema({
     required: true,
     default: 'Recovery and Wellness Agent'
   },
+  previousAgent: {
+    type: String,
+    default: 'wellness_assessment'
+  },
+  currentNode: {
+    type: String,
+    default: 'recovery_wellness_node'
+  },
+  previousNode: {
+    type: String,
+    default: 'wellness_assessment_node'
+  },
+  journeyIteration: {
+    type: Number,
+    default: 1
+  },
   recommendationReason: {
     type: String,
     default: ''

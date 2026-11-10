@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Brain, Send, ShieldAlert, Sparkles, BookOpen, Target, ChevronDown, ChevronUp, Info, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Brain, Send, ShieldAlert, Sparkles, BookOpen, Target, ChevronDown, ChevronUp, Info, CheckCircle2, RotateCcw } from 'lucide-react';
 import api from '../services/api';
 import { useWellness } from '../context/WellnessContext';
 import VoiceInterface from '../components/psych/VoiceInterface';
 import MoodTracker from '../components/psych/MoodTracker';
 import CrisisOverlay from '../components/psych/CrisisOverlay';
 import AgentNavigationHeader from '../components/AgentNavigationHeader';
+import InactivityTimerBanner from '../components/InactivityTimerBanner';
 
 const JOURNAL_PROMPTS = [
   'How am I feeling right now, and what might be contributing to this?',
@@ -37,7 +39,8 @@ function TypingIndicator() {
 }
 
 export default function PsychologicalSupportAgentPage() {
-  const { wellnessData, user, mmwbi, psychometricScores, primaryConcerns } = useWellness();
+  const navigate = useNavigate();
+  const { wellnessData, user, mmwbi, psychometricScores, primaryConcerns, activeSessionId, refresh, agentPlan } = useWellness();
   const [activeTab, setActiveTab] = useState('chat');
   const [messages, setMessages] = useState([{
     sender: 'agent',
@@ -46,6 +49,7 @@ export default function PsychologicalSupportAgentPage() {
   }]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reassessing, setReassessing] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [suggestedActivities, setSuggestedActivities] = useState([]);
   const [cbtExercises, setCbtExercises] = useState([]);
@@ -160,19 +164,80 @@ export default function PsychologicalSupportAgentPage() {
 
   const getMsgStyle = (msg) => {
     if (msg.sender === 'user') return { bg: 'linear-gradient(135deg, #6b3fb0, #4c1d95)', color: 'white', rounded: 'rounded-2xl rounded-br-none' };
-    if (msg.riskLevel === 'crisis') return { bg: '#7f1d1d', color: 'white', rounded: 'rounded-2xl rounded-bl-none' };
+    if (msg.riskLevel === 'crisis') return { bg: '#7f1d1d', color: 'white', rounded: 'rounded-2xl rounded-br-none' };
     if (msg.riskLevel === 'high_concern' || msg.riskLevel === 'moderate') return { bg: '#fff7ed', color: '#92400e', rounded: 'rounded-2xl rounded-bl-none', border: '1px solid #fde68a' };
     return { bg: '#f8fafc', color: '#1e293b', rounded: 'rounded-2xl rounded-bl-none', border: '1px solid #e2e8f0' };
+  };
+
+  const handleCompleteSession = async () => {
+    setReassessing(true);
+    try {
+      if (wellnessData?.journey?._id) {
+        await api.post('/journey/update', {
+          journeyId: wellnessData.journey._id,
+          completedAgent: 'Psychological Support Agent',
+          status: 'in_progress'
+        });
+      }
+
+      const sid = activeSessionId || wellnessData?.session?.sessionId;
+      await api.post('/langgraph/resume', {
+        sessionId: sid,
+        userActionResult: {
+          agentName: 'psychological_support',
+          status: 'completed',
+          completedAt: new Date()
+        }
+      });
+
+      if (refresh) await refresh();
+
+      await new Promise(r => setTimeout(r, 600));
+
+      const nextStep = agentPlan?.find(s => !s.isCompleted && s.key !== 'psychological-support');
+      if (nextStep?.path) {
+        navigate(nextStep.path);
+      } else {
+        navigate('/agent-session-report');
+      }
+    } catch (err) {
+      console.warn('Error completing psychological session:', err);
+      navigate('/dashboard');
+    } finally {
+      setReassessing(false);
+    }
   };
 
   return (
     <>
       {showCrisis && <CrisisOverlay onDismiss={() => setShowCrisis(false)} />}
 
+      {/* LangGraph Re-assessment Modal */}
+      {reassessing && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl animate-fade-in">
+            <div className="relative w-20 h-20 mx-auto">
+              <div className="absolute inset-0 rounded-full bg-purple-600/30 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-purple-700 via-indigo-700 to-teal-500 flex items-center justify-center border-2 border-purple-400 shadow-lg">
+                <RotateCcw className="w-10 h-10 text-white animate-spin" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-300 bg-purple-950/80 px-3 py-1 rounded-full border border-purple-700/50">
+                LangGraph State Orchestrator
+              </span>
+              <h3 className="text-xl font-black font-heading text-white">Completing Psychological Support...</h3>
+              <p className="text-xs text-purple-200 font-mono animate-pulse">Evaluating remaining agent sequence...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto space-y-5 pb-8">
+        <InactivityTimerBanner agentName="psychological_support" sessionId={activeSessionId} />
         <AgentNavigationHeader activeKey="psychological-support" />
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 p-5 rounded-2xl"
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl"
           style={{ background: 'linear-gradient(135deg, #f5f0fb, #ede5f7)', border: '1px solid #c9b3f5' }}>
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -184,13 +249,26 @@ export default function PsychologicalSupportAgentPage() {
               <p className="text-xs mt-0.5" style={{ color: '#6b3fb0' }}>AI Emotional Support · CBT-Informed · Non-Diagnostic</p>
             </div>
           </div>
-          {mmwbi && (
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#9f7dd4' }}>Your MMWBI</p>
-              <p className="text-2xl font-black" style={{ color: '#6b3fb0' }}>{mmwbi?.toFixed(0)}</p>
-            </div>
-          )}
+          
+          <div className="flex items-center gap-3">
+            {mmwbi && (
+              <div className="text-right hidden sm:block">
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#9f7dd4' }}>Your MMWBI</p>
+                <p className="text-2xl font-black" style={{ color: '#6b3fb0' }}>{mmwbi?.toFixed(0)}</p>
+              </div>
+            )}
+            <button
+              onClick={handleCompleteSession}
+              disabled={reassessing}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow transition-all flex items-center gap-2 cursor-pointer hover:opacity-90 disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #6b3fb0, #4c1d95)' }}
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              <span>{reassessing ? 'Completing...' : 'Complete Session & Next Agent'}</span>
+            </button>
+          </div>
         </div>
+
 
         {/* Safety notice */}
         <div className="flex items-start gap-2.5 p-3 rounded-xl border text-xs"

@@ -25,4 +25,7 @@ export const env = {
   CLIENT_URL:    getEnv('CLIENT_URL', 'http://localhost:5173'),
   ML_SERVICE_URL:getEnv('ML_SERVICE_URL', 'http://localhost:8000'),
   GEMINI_API_KEY:getEnv('GEMINI_API_KEY', ''),
+  ADMIN_EMAIL:   getEnv('ADMIN_EMAIL', 'admin@aarogyamitra.com'),
+  ADMIN_PASSWORD:getEnv('ADMIN_PASSWORD', 'Admin@Aarogya2026!'),
 };
+

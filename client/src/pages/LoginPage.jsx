@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import logoImg from '../assets/AarogyaMitra logo.png';
 import { Link, useNavigate } from 'react-router-dom';
-import { HeartPulse, Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles, CheckCircle2, Flower2 } from 'lucide-react';
+import { HeartPulse, Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles, Flower2, ShieldCheck, KeyRound, User } from 'lucide-react';
 import api from '../services/api';
 
 const AFFIRMATIONS = [
@@ -13,6 +13,7 @@ const AFFIRMATIONS = [
 ];
 
 export default function LoginPage({ onLoginSuccess }) {
+  const [loginMode, setLoginMode] = useState('user'); // 'user' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -22,19 +23,50 @@ export default function LoginPage({ onLoginSuccess }) {
 
   const affirmation = AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)];
 
+  const handleQuickFillAdmin = () => {
+    setLoginMode('admin');
+    setEmail('admin@aarogyamitra.com');
+    setPassword('Admin@Aarogya2026!');
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
+
     try {
-      const res = await api.post('/auth/login', { email, password });
-      if (res.success) {
-        localStorage.setItem('token', res.data.token);
-        onLoginSuccess(res.data.user);
-        navigate('/dashboard');
+      if (loginMode === 'admin') {
+        const res = await api.post('/admin/login', { email, password });
+        if (res.success && res.data.token) {
+          localStorage.setItem('adminToken', res.data.token);
+          localStorage.setItem('token', res.data.token);
+          if (onLoginSuccess) {
+            onLoginSuccess({
+              id: res.data.admin.id,
+              email: res.data.admin.email,
+              firstName: 'System',
+              lastName: 'Admin',
+              role: 'admin'
+            });
+          }
+          navigate('/admin');
+        } else {
+          setError(res.message || 'Admin authentication failed.');
+        }
+      } else {
+        const res = await api.post('/auth/login', { email, password });
+        if (res.success) {
+          localStorage.setItem('token', res.data.token);
+          if (onLoginSuccess) onLoginSuccess(res.data.user);
+          navigate('/dashboard');
+        }
       }
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,7 +122,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
       {/* ── Right panel — form ── */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
 
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-2 justify-center">
@@ -101,10 +133,63 @@ export default function LoginPage({ onLoginSuccess }) {
             <span className="text-xl font-bold font-heading" style={{ color: '#2a1349' }}>AarogyaMitra</span>
           </div>
 
-          <div>
-            <h1 className="text-3xl font-extrabold font-heading" style={{ color: '#2a1349' }}>Welcome back</h1>
-            <p className="text-sm mt-1.5 text-slate-500">Sign in to continue your wellness journey</p>
+          {/* Mode Switcher Tabs */}
+          <div className="p-1.5 rounded-2xl bg-purple-100/70 border border-purple-200/80 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('user'); setError(''); }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                loginMode === 'user'
+                  ? 'bg-purple-900 text-white shadow-sm'
+                  : 'text-purple-700 hover:bg-purple-100'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>User Login</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setLoginMode('admin'); setError(''); }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                loginMode === 'admin'
+                  ? 'bg-purple-900 text-white shadow-sm'
+                  : 'text-purple-700 hover:bg-purple-100'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin Portal</span>
+            </button>
           </div>
+
+          <div>
+            <h1 className="text-3xl font-extrabold font-heading" style={{ color: '#2a1349' }}>
+              {loginMode === 'admin' ? 'Admin Portal Sign In' : 'Welcome back'}
+            </h1>
+            <p className="text-sm mt-1.5 text-slate-500">
+              {loginMode === 'admin'
+                ? 'Sign in with Administrator credentials to access control room & user logs'
+                : 'Sign in to continue your wellness journey'}
+            </p>
+          </div>
+
+          {/* Admin Quick Fill Banner */}
+          {loginMode === 'admin' && (
+            <div className="bg-purple-50/90 border border-purple-200/80 rounded-2xl p-3.5 flex items-center justify-between text-xs section-enter">
+              <div className="flex items-center gap-2 text-purple-900 font-semibold">
+                <KeyRound className="w-4 h-4 text-purple-600" />
+                <span>Default Admin Account</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickFillAdmin}
+                className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition-all flex items-center gap-1 shadow-sm"
+              >
+                <Sparkles className="w-3 h-3" />
+                Fill Admin Credentials
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm section-enter">
@@ -116,7 +201,7 @@ export default function LoginPage({ onLoginSuccess }) {
             {/* Email */}
             <div className="space-y-1.5">
               <label htmlFor="login-email" className="block text-xs font-bold uppercase tracking-widest text-purple-700">
-                Email Address
+                {loginMode === 'admin' ? 'Admin Email Address' : 'Email Address'}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10" style={{ color: '#9f7dd4' }} />
@@ -128,7 +213,7 @@ export default function LoginPage({ onLoginSuccess }) {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={loginMode === 'admin' ? "admin@aarogyamitra.com" : "you@example.com"}
                   className="input-field pl-11"
                 />
               </div>
@@ -137,7 +222,7 @@ export default function LoginPage({ onLoginSuccess }) {
             {/* Password */}
             <div className="space-y-1.5">
               <label htmlFor="login-password" className="block text-xs font-bold uppercase tracking-widest text-purple-700">
-                Password
+                {loginMode === 'admin' ? 'Admin Password' : 'Password'}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-10" style={{ color: '#9f7dd4' }} />
@@ -174,16 +259,25 @@ export default function LoginPage({ onLoginSuccess }) {
                   <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>Signing in…
+                  </svg>
+                  {loginMode === 'admin' ? 'Authenticating Admin…' : 'Signing in…'}
                 </span>
-              ) : 'Sign In'}
+              ) : (
+                loginMode === 'admin' ? 'Sign In as Administrator' : 'Sign In'
+              )}
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/signup" className="font-bold text-purple-700 hover:text-purple-900">Create one free</Link>
-          </p>
+          {loginMode === 'user' ? (
+            <p className="text-center text-sm text-slate-500">
+              Don't have an account?{' '}
+              <Link to="/signup" className="font-bold text-purple-700 hover:text-purple-900">Create one free</Link>
+            </p>
+          ) : (
+            <p className="text-center text-xs text-purple-600 font-semibold">
+              Single Administrator credentials are required for Control Room access.
+            </p>
+          )}
 
           <p className="text-center text-xs text-slate-400 leading-relaxed">
             AarogyaMitra is a wellness screening tool and does not provide medical diagnoses.

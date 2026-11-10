@@ -13,6 +13,7 @@ export function WellnessProvider({ children, user }) {
   const [wellnessData, setWellnessData] = useState(null);   // { result, report, journey }
   const [profile, setProfile] = useState(null);              // UserProfile
   const [recoveryProfile, setRecoveryProfile] = useState(null); // Latest RecoveryProfile
+  const [activeSession, setActiveSession] = useState(null);  // Active LangGraph Session
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -23,10 +24,11 @@ export function WellnessProvider({ children, user }) {
     setError(null);
     try {
       // Fetch in parallel — all from single source of truth endpoints
-      const [wellnessRes, profileRes, recoveryRes] = await Promise.allSettled([
+      const [wellnessRes, profileRes, recoveryRes, sessionRes] = await Promise.allSettled([
         api.get('/wellness/latest'),
         api.get('/profile'),
-        api.get('/recovery/profile/latest')
+        api.get('/recovery/profile/latest'),
+        api.get('/langgraph/session/active')
       ]);
 
       if (wellnessRes.status === 'fulfilled') {
@@ -48,6 +50,12 @@ export function WellnessProvider({ children, user }) {
       if (recoveryRes.status === 'fulfilled') {
         const r = recoveryRes.value;
         setRecoveryProfile(r.data || r || null);
+      }
+
+      if (sessionRes.status === 'fulfilled') {
+        const s = sessionRes.value;
+        const sData = s.data || s;
+        setActiveSession(sData.state || sData.session || null);
       }
 
       setLastRefresh(new Date());
@@ -86,6 +94,8 @@ export function WellnessProvider({ children, user }) {
     wellnessData,
     profile,
     recoveryProfile,
+    activeSession,
+    activeSessionId: activeSession?.sessionId || null,
     user,
     loading,
     error,

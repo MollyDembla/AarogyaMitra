@@ -12,10 +12,22 @@ const api = axios.create({
 // Add Authorization Token Header to requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const adminToken = localStorage.getItem('adminToken');
+    const userToken = localStorage.getItem('token');
+
+    // Prefer adminToken for admin endpoints, fallback to userToken
+    if (config.url && config.url.includes('/admin')) {
+      const activeToken = adminToken || userToken;
+      if (activeToken) {
+        config.headers.Authorization = `Bearer ${activeToken}`;
+      }
+    } else {
+      const activeToken = userToken || adminToken;
+      if (activeToken) {
+        config.headers.Authorization = `Bearer ${activeToken}`;
+      }
     }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -26,8 +38,11 @@ api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Optional: Clear token if expired
-      localStorage.removeItem('token');
+      if (error.config && error.config.url && error.config.url.includes('/admin')) {
+        localStorage.removeItem('adminToken');
+      } else {
+        localStorage.removeItem('token');
+      }
     }
     return Promise.reject(error.response?.data || { message: error.message });
   }

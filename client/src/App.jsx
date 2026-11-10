@@ -14,6 +14,7 @@ import AssessmentPage from './pages/AssessmentPage';
 import AssessmentProgressPage from './pages/AssessmentProgressPage';
 import DashboardPage from './pages/DashboardPage';
 import WellnessReportPage from './pages/WellnessReportPage';
+import AgentSessionReportPage from './pages/AgentSessionReportPage';
 import AgentJourneyPage from './pages/AgentJourneyPage';
 import PhysicalActivityAgentPage from './pages/PhysicalActivityAgentPage';
 import PsychologicalSupportAgentPage from './pages/PsychologicalSupportAgentPage';
@@ -22,12 +23,27 @@ import ProfessionalSupportPage from './pages/ProfessionalSupportPage';
 import ProfileProgressPage from './pages/ProfileProgressPage';
 import ProgressPage from './pages/ProgressPage';
 
+import AdminLoginPage from './pages/AdminLoginPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+
 import { useWellness } from './context/WellnessContext';
 
 function ProtectedRoute({ user, children }) {
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'admin' || user.email === 'admin@aarogyamitra.com') {
+    return <Navigate to="/admin" replace />;
+  }
   return children;
 }
+
+
+function AdminProtectedRoute({ children }) {
+  const adminToken = localStorage.getItem('adminToken');
+  if (!adminToken) return <Navigate to="/login" replace />;
+  return children;
+}
+
+import AutoJourneyOrchestrator from './components/AutoJourneyOrchestrator';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -50,7 +66,11 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (userData) => setUser(userData);
-  const handleLogout = () => { localStorage.removeItem('token'); setUser(null); };
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('adminToken');
+    setUser(null);
+  };
 
   if (loading) {
     return (
@@ -65,11 +85,18 @@ export default function App() {
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <WellnessProvider user={user}>
         <Layout user={user} onLogout={handleLogout}>
+          <AutoJourneyOrchestrator user={user} />
           <Routes>
+
             {/* Public */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/signup" element={<SignUpPage onLoginSuccess={handleLoginSuccess} />} />
+
+            {/* Admin Portal Routes */}
+            <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+            <Route path="/admin" element={<AdminProtectedRoute><AdminDashboardPage /></AdminProtectedRoute>} />
+
 
             {/* Onboarding / Assessment (triggered during signup) */}
             <Route path="/onboarding" element={<ProtectedRoute user={user}><OnboardingPage /></ProtectedRoute>} />
@@ -79,6 +106,7 @@ export default function App() {
             {/* Authenticated Routes */}
             <Route path="/dashboard" element={<ProtectedRoute user={user}><DashboardPage user={user} /></ProtectedRoute>} />
             <Route path="/report" element={<ProtectedRoute user={user}><WellnessReportPage /></ProtectedRoute>} />
+            <Route path="/agent-session-report" element={<ProtectedRoute user={user}><AgentSessionReportPage /></ProtectedRoute>} />
             <Route path="/journey" element={<Navigate to="/dashboard" replace />} />
             <Route path="/progress" element={<ProtectedRoute user={user}><ProgressPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute user={user}><ProfileProgressPage user={user} /></ProtectedRoute>} />
@@ -97,3 +125,4 @@ export default function App() {
     </Router>
   );
 }
+

@@ -1,10 +1,8 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   HeartPulse, Activity, Brain, Shield, Sparkles, FileText,
-  ArrowRight, CheckCircle2, RotateCcw, Calendar, Moon,
-  Users, HelpCircle, TrendingUp, TrendingDown, Minus,
-  Zap, AlertTriangle, Clock, ChevronRight, User
+  ArrowRight, Moon, Users, TrendingUp, Clock, Bot
 } from 'lucide-react';
 import { useWellness } from '../context/WellnessContext';
 
@@ -17,36 +15,12 @@ const DOMAIN_CONFIG = [
   { key: 'stressResilience', label: 'Stress Resilience', icon: HeartPulse, color: '#dc2626', bg: '#fef2f2' },
 ];
 
-const QUICK_ACTIONS = [
-  { label: 'Recovery & Wellness', path: '/agent/recovery-wellness', icon: Moon, color: '#1d4ed8', bg: '#dbeafe' },
-  { label: 'Psychological Support', path: '/agent/psychological-support', icon: Brain, color: '#7c3aed', bg: '#f5f3ff' },
-  { label: 'Physical Activity', path: '/agent/physical-activity', icon: Activity, color: '#16a34a', bg: '#dcfce7' },
-  { label: 'My Report', path: '/report', icon: FileText, color: '#6b3fb0', bg: '#f5f0fb' },
-  { label: 'My Progress', path: '/progress', icon: TrendingUp, color: '#d97706', bg: '#fffbeb' },
-  { label: 'Professional Care', path: '/agent/professional-support', icon: Shield, color: '#b45309', bg: '#fef3c7' },
-];
-
-function ScoreChange({ current, previous }) {
-  if (!previous || previous === current) return <span className="text-xs text-slate-400 flex items-center gap-1"><Minus className="w-3 h-3" /> No change</span>;
-  const diff = current - previous;
-  if (diff > 0) return (
-    <span className="text-xs font-bold flex items-center gap-1" style={{ color: '#16a34a' }}>
-      <TrendingUp className="w-3 h-3" /> +{diff.toFixed(1)} pts
-    </span>
-  );
-  return (
-    <span className="text-xs font-bold flex items-center gap-1" style={{ color: '#dc2626' }}>
-      <TrendingDown className="w-3 h-3" /> {diff.toFixed(1)} pts
-    </span>
-  );
-}
-
 function ScoreGauge({ score }) {
   const angle = (score / 100) * 180 - 90;
   const color = score >= 70 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626';
   return (
     <div className="relative flex flex-col items-center">
-      <svg width="120" height="70" viewBox="0 0 120 70">
+      <svg width="110" height="65" viewBox="0 0 120 70">
         <path d="M10 65 A50 50 0 0 1 110 65" fill="none" stroke="#e2e8f0" strokeWidth="8" strokeLinecap="round" />
         <path
           d="M10 65 A50 50 0 0 1 110 65"
@@ -76,12 +50,38 @@ function getGreeting() {
 }
 
 export default function DashboardPage({ user }) {
+  const navigate = useNavigate();
   const {
     wellnessData, loading, hasAssessment,
     mmwbi, domainScores, wellnessCategory,
-    primaryConcerns, strengths, currentAgent,
-    recommendationReason, rwi, psychometricScores
+    currentAgent, recommendationReason, rwi
   } = useWellness();
+
+  const [autoNavCountdown, setAutoNavCountdown] = useState(15);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const agentRoute = currentAgent?.toLowerCase().includes('recovery') ? '/agent/recovery-wellness'
+    : currentAgent?.toLowerCase().includes('psycho') ? '/agent/psychological-support'
+      : currentAgent?.toLowerCase().includes('physical') ? '/agent/physical-activity'
+        : currentAgent?.toLowerCase().includes('professional') ? '/agent/professional-support'
+          : '/agent/recovery-wellness';
+
+  useEffect(() => {
+    if (!hasAssessment || isPaused) return;
+
+    const timer = setInterval(() => {
+      setAutoNavCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          navigate(agentRoute);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [hasAssessment, isPaused, agentRoute, navigate]);
 
   if (loading) {
     return (
@@ -90,297 +90,158 @@ export default function DashboardPage({ user }) {
           style={{ background: 'linear-gradient(135deg, #6b3fb0, #9f7dd4)' }}>
           <HeartPulse className="w-6 h-6 text-white" />
         </div>
-        <p className="text-sm font-medium" style={{ color: '#9f7dd4' }}>Loading your wellness dashboard...</p>
+        <p className="text-xs font-semibold" style={{ color: '#9f7dd4' }}>Loading wellness dashboard...</p>
       </div>
     );
   }
 
   if (!hasAssessment) {
     return (
-      <div className="max-w-2xl mx-auto py-12 space-y-6">
-        <div className="rounded-3xl overflow-hidden shadow-xl"
+      <div className="max-w-xl mx-auto py-12 space-y-6">
+        <div className="rounded-3xl p-8 text-center space-y-5 shadow-lg text-white"
           style={{ background: 'linear-gradient(135deg, #2a1349, #3d1f6e)' }}>
-          <div className="p-10 text-center space-y-5">
-            <div className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(201,179,245,0.15)' }}>
-              <HeartPulse className="w-10 h-10" style={{ color: '#c9b3f5' }} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-black font-heading text-white mb-2">
-                Welcome, {user?.firstName}! 👋
-              </h1>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(201,179,245,0.7)' }}>
-                Begin your wellness journey by completing the initial assessment. Your multimodal profile will unlock all specialized agents and personalized guidance.
-              </p>
-            </div>
-            <Link to="/assessment"
-              className="btn-primary inline-flex">
-              Start Initial Assessment <ArrowRight className="w-5 h-5" />
-            </Link>
+          <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center bg-white/10">
+            <HeartPulse className="w-8 h-8 text-purple-200" />
           </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          {['Wellness Assessment', 'Personalized Report', 'AI Agent Routing'].map((t, i) => (
-            <div key={t} className="card p-4 text-center space-y-2">
-              <div className="w-8 h-8 rounded-lg mx-auto flex items-center justify-center"
-                style={{ background: '#f5f0fb' }}>
-                <span className="text-sm font-black" style={{ color: '#6b3fb0' }}>{i + 1}</span>
-              </div>
-              <p className="text-xs font-semibold" style={{ color: '#2a1349' }}>{t}</p>
-            </div>
-          ))}
+          <div>
+            <h1 className="text-2xl font-black font-heading">
+              Welcome, {user?.firstName}! 👋
+            </h1>
+            <p className="text-xs text-purple-200/80 mt-1">
+              Complete your initial health assessment to unlock your personalized agent journey.
+            </p>
+          </div>
+          <Link to="/assessment" className="btn-primary inline-flex text-xs px-6 py-3">
+            Start Assessment <ArrowRight className="w-4 h-4 ml-1.5" />
+          </Link>
         </div>
       </div>
     );
   }
 
-  const { report, journey } = wellnessData || {};
   const dateFormatted = wellnessData?.result?.createdAt
-    ? new Date(wellnessData.result.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'Recent';
-  const agentRoute = currentAgent?.toLowerCase().includes('recovery') ? '/agent/recovery-wellness'
-    : currentAgent?.toLowerCase().includes('psycho') ? '/agent/psychological-support'
-      : currentAgent?.toLowerCase().includes('physical') ? '/agent/physical-activity'
-        : currentAgent?.toLowerCase().includes('professional') ? '/agent/professional-support'
-          : '/agent/recovery-wellness';
+    ? new Date(wellnessData.result.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : 'Today';
 
   return (
-    <div className="space-y-7 pb-8">
-      {/* Welcome */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-8">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black font-heading" style={{ color: '#1a0b35' }}>
+          <h1 className="text-xl font-black font-heading text-purple-950">
             {getGreeting()}, {user?.firstName} 👋
           </h1>
-          <p className="text-sm mt-1" style={{ color: '#64748b' }}>
-            Here is your multimodal wellness overview for today.
-          </p>
+          <p className="text-xs text-slate-500 mt-0.5">Your daily wellness summary</p>
         </div>
-        <div className="flex items-center gap-2 text-xs" style={{ color: '#9f7dd4' }}>
-          <Clock className="w-4 h-4" />
-          Last assessed: {dateFormatted}
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">
+          <Clock className="w-3.5 h-3.5 text-purple-500" />
+          <span>Assessed: {dateFormatted}</span>
         </div>
       </div>
 
-      {/* Top row: MMWBI + Reasoning */}
+      {/* Main Highlights Row */}
       <div className="grid lg:grid-cols-3 gap-5">
 
-        {/* MMWBI Card */}
-        <div className="rounded-3xl p-6 text-white space-y-4 flex flex-col justify-between"
-          style={{ background: 'linear-gradient(145deg, #1a0b35, #2a1349, #3d1f6e)' }}>
+        {/* 1. MMWBI Summary Card */}
+        <div className="rounded-3xl p-5 text-white flex flex-col justify-between space-y-4 shadow-md"
+          style={{ background: 'linear-gradient(145deg, #1a0b35, #2a1349)' }}>
+          
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'rgba(201,179,245,0.6)' }}>
-              Multimodal Well-Being Index
+            <span className="text-[10px] font-black uppercase tracking-widest text-purple-300">
+              Wellness Index (MMWBI)
             </span>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(201,179,245,0.15)', color: '#c9b3f5' }}>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-900/60 text-purple-200 border border-purple-700">
               {wellnessCategory}
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between px-2">
             <div>
-              <p className="text-6xl font-black" style={{ color: '#e2d5ff' }}>{mmwbi?.toFixed(0)}</p>
-              <p className="text-sm" style={{ color: 'rgba(201,179,245,0.5)' }}>out of 100</p>
+              <p className="text-5xl font-black text-purple-100">{mmwbi?.toFixed(0)}</p>
+              <p className="text-xs text-purple-300/60">out of 100</p>
             </div>
             <ScoreGauge score={mmwbi} />
           </div>
 
-          {/* Mini domain mini-bars */}
-          <div className="space-y-1.5 pt-2 border-t" style={{ borderColor: 'rgba(139,98,217,0.2)' }}>
-            {Object.entries(domainScores).slice(0, 3).map(([k, v]) => {
-              const cfg = DOMAIN_CONFIG.find(d => d.key === k);
-              if (!cfg || !v) return null;
-              return (
-                <div key={k} className="flex items-center gap-2">
-                  <span className="text-[10px] flex-1" style={{ color: 'rgba(201,179,245,0.6)' }}>{cfg.label}</span>
-                  <div className="w-16 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${v}%`, background: '#9f7dd4' }} />
-                  </div>
-                  <span className="text-[10px] font-bold w-6 text-right" style={{ color: '#c9b3f5' }}>{v?.toFixed(0)}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-1">
             <Link to="/report" state={{ wellnessData }}
-              className="flex-1 text-center py-2.5 text-xs font-bold rounded-xl transition-all"
-              style={{ background: 'rgba(139,98,217,0.3)', color: '#e2d5ff' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,98,217,0.5)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(139,98,217,0.3)'}>
-              <FileText className="w-3.5 h-3.5 inline mr-1.5" />
+              className="flex-1 text-center py-2 text-xs font-bold rounded-xl bg-purple-700/40 hover:bg-purple-700/60 text-purple-100 transition-all">
+              <FileText className="w-3.5 h-3.5 inline mr-1" />
               View Report
             </Link>
-            <Link to="/profile"
-              className="flex-1 text-center py-2.5 text-xs font-bold rounded-xl border transition-all"
-              style={{ background: 'transparent', color: 'rgba(201,179,245,0.6)', borderColor: 'rgba(139,98,217,0.3)' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,98,217,0.15)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <User className="w-3.5 h-3.5 inline mr-1.5" />
-              My Profile
+            <Link to="/progress"
+              className="flex-1 text-center py-2 text-xs font-bold rounded-xl border border-purple-700/60 hover:bg-purple-900/40 text-purple-300 transition-all">
+              <TrendingUp className="w-3.5 h-3.5 inline mr-1" />
+              Trends
             </Link>
           </div>
         </div>
 
-        {/* Stateful LangGraph Health Assistant Guide & Dynamic Journey */}
-        <div className="lg:col-span-2 card p-6 flex flex-col justify-between space-y-5"
-          style={{ background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)', border: '1px solid #e9d8fd' }}>
+        {/* 2. Automated Agent Recommendation Banner */}
+        <div className="lg:col-span-2 rounded-3xl p-5 bg-gradient-to-br from-white to-purple-50/50 border border-purple-100 shadow-sm flex flex-col justify-between space-y-4">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: '#6b3fb0' }}>
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="w-7 h-7 rounded-lg bg-purple-900 text-amber-300 flex items-center justify-center">
+                <Bot className="w-4 h-4" />
               </div>
-              <span className="font-bold text-sm" style={{ color: '#6b3fb0' }}>LangGraph State Orchestrator</span>
+              <span className="text-xs font-extrabold uppercase tracking-wider text-purple-950">Next Recommended Step</span>
             </div>
-            <span className="text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-200">
-              Dynamic State Recommendation
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+              Auto-Opening in {autoNavCountdown}s
             </span>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
-                Current Recommended Step
-              </span>
-              <h3 className="text-2xl font-black font-heading mt-1.5" style={{ color: '#1a0b35' }}>
-                {currentAgent || 'Recovery & Wellness Agent'}
-              </h3>
-            </div>
-
-            {/* LangGraph State Analysis Rationale */}
-            <div className="p-4 rounded-2xl border flex items-start gap-3 bg-white border-purple-100 shadow-sm">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#7c3aed' }} />
-              <div>
-                <p className="text-xs font-bold mb-1" style={{ color: '#5b21b6' }}>LangGraph State Evaluation Rationale:</p>
-                <p className="text-xs leading-relaxed" style={{ color: '#475569' }}>
-                  {recommendationReason || report?.recommendedNextStep || 'LangGraph state engine analyzed health metrics and dynamically assigned this node as your immediate priority.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Dynamic Executed Journey History with Real Scores */}
-            <div className="pt-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>
-                  Executed Journey History & Scores
-                </p>
-                <span className="text-[10px] font-semibold text-purple-600">
-                  Real-time LangGraph Journey
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2 text-xs font-medium">
-                {/* Step 1: Multimodal Assessment (Always Completed) */}
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center gap-2 shadow-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <div>
-                    <span className="font-bold text-[11px] block">1. Assessment</span>
-                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      Score: {mmwbi ? `${mmwbi.toFixed(0)}/100 MMWBI` : 'Completed'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Deduplicated Completed Agents from Journey State */}
-                {(() => {
-                  const rawCompleted = wellnessData?.journey?.completedAgents || [];
-                  const seen = new Set(['wellness_assessment', 'assessment']);
-                  const uniqueList = [];
-
-                  rawCompleted.forEach(a => {
-                    const str = String(a).toLowerCase();
-                    let key = a;
-                    if (str.includes('professional') || str.includes('care')) key = 'Professional Care';
-                    else if (str.includes('psycho')) key = 'Psychological Support';
-                    else if (str.includes('physic')) key = 'Physical Activity';
-                    else if (str.includes('recovery')) key = 'Recovery & Wellness';
-
-                    if (key !== 'wellness_assessment' && !seen.has(key)) {
-                      seen.add(key);
-                      uniqueList.push({ name: key, raw: a });
-                    }
-                  });
-
-                  return uniqueList.map((item, idx) => {
-                    let scoreLabel = 'Completed';
-                    const lowerName = item.name.toLowerCase();
-                    if (lowerName.includes('recovery') && rwi) {
-                      scoreLabel = `RWI: ${rwi}/100`;
-                    } else if (lowerName.includes('psycho') && psychometricScores?.who5?.score) {
-                      scoreLabel = `WHO-5: ${psychometricScores.who5.score}/100`;
-                    } else if (lowerName.includes('physical')) {
-                      scoreLabel = 'Pose Acc: Evaluated';
-                    }
-
-                    return (
-                      <div key={idx} className="p-2.5 rounded-xl bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center gap-2 shadow-sm">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                        <div>
-                          <span className="font-bold text-[11px] block">{item.name}</span>
-                          <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                            Score: {scoreLabel}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-
-                {/* Current Ongoing Agent */}
-                {currentAgent && currentAgent !== 'Journey Complete' && (
-                  <div className="p-2.5 rounded-xl bg-purple-600 text-white font-bold flex items-center gap-2 shadow-md">
-                    <Sparkles className="w-4 h-4 text-purple-200 animate-spin flex-shrink-0" />
-                    <div>
-                      <span className="font-bold text-[11px] block">{currentAgent.replace(' Agent', '')}</span>
-                      <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 text-white px-1.5 py-0.5 rounded">
-                        Active Step (In Progress)
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Dynamic Future Steps Notice - No Pre-Decided Steps */}
-              <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200 text-purple-900 text-[11px] flex items-center gap-2 mt-2">
-                <RotateCcw className="w-3.5 h-3.5 text-purple-600 flex-shrink-0 animate-spin" />
-                <span>
-                  <strong>Next Agent Step:</strong> LangGraph state engine will reassess health outputs after this node to recommend the next step.
-                </span>
-              </div>
-            </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-black font-heading text-purple-950">
+              {currentAgent || 'Recovery and Wellness Agent'}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-purple-100 italic">
+              "{recommendationReason || 'System evaluated your health parameters and assigned this node as your immediate focus.'}"
+            </p>
           </div>
 
-          <Link to={agentRoute}
-            className="btn-primary inline-flex w-full sm:w-fit text-sm items-center justify-center gap-2 py-3 px-6 shadow-md mt-2">
-            Start Recommended Step ({currentAgent || 'Recovery Agent'}) <ArrowRight className="w-4 h-4" />
-          </Link>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-purple-100">
+            <button
+              type="button"
+              onClick={() => setIsPaused(!isPaused)}
+              className="text-xs font-semibold text-purple-700 hover:text-purple-900 transition-colors border-none bg-transparent cursor-pointer"
+            >
+              {isPaused ? '▶ Resume Auto-Navigation' : '⏸ Pause Countdown'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(agentRoute)}
+              className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-purple-900 to-indigo-900 hover:from-purple-800 hover:to-indigo-800 text-white shadow flex items-center justify-center gap-1.5 transition-all cursor-pointer border-none"
+            >
+              <span>Start Session Now</span>
+              <ArrowRight className="w-4 h-4 text-amber-300" />
+            </button>
+          </div>
         </div>
+
       </div>
 
-      {/* Domain Scores */}
+      {/* Domain Scores Bar */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold font-heading text-lg" style={{ color: '#1a0b35' }}>Domain Scores</h2>
-          <Link to="/progress" className="text-xs font-semibold flex items-center gap-1" style={{ color: '#6b3fb0' }}>
-            View Trends <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+        <h2 className="font-bold text-sm text-purple-950 uppercase tracking-wider">Health Domain Scores</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {DOMAIN_CONFIG.map(({ key, label, icon: Icon, color, bg }) => {
             const score = domainScores[key] ?? 0;
             return (
-              <div key={key} className="card p-4 space-y-3">
+              <div key={key} className="bg-white p-3.5 rounded-2xl border border-purple-100 space-y-2 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: bg }}>
-                    <Icon className="w-4 h-4" style={{ color }} />
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: bg }}>
+                    <Icon className="w-3.5 h-3.5" style={{ color }} />
                   </div>
-                  <span className="text-xl font-black" style={{ color }}>{score?.toFixed(0)}</span>
+                  <span className="text-lg font-black" style={{ color }}>{score?.toFixed(0)}</span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider leading-tight" style={{ color: '#64748b' }}>{label}</p>
-                  <div className="w-full h-1.5 rounded-full mt-2" style={{ background: '#f1f5f9' }}>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase truncate">{label}</p>
+                  <div className="w-full h-1 rounded-full mt-1 bg-slate-100">
                     <div className="h-full rounded-full" style={{ width: `${score}%`, background: color }} />
                   </div>
                 </div>
@@ -390,104 +251,57 @@ export default function DashboardPage({ user }) {
         </div>
       </div>
 
-      {/* Recovery + Psych Cards + Concerns/Strengths */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-
-        {/* Recovery Card */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#eff6ff' }}>
-              <Moon className="w-4 h-4" style={{ color: '#1d4ed8' }} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#1d4ed8' }}>Recovery & Wellness</span>
-          </div>
-          {rwi ? (
-            <div>
-              <p className="text-3xl font-black" style={{ color: '#1d4ed8' }}>{rwi}<span className="text-base font-medium text-slate-400">/100</span></p>
-              <p className="text-xs mt-1" style={{ color: '#64748b' }}>Recovery Wellness Index</p>
-            </div>
-          ) : (
-            <p className="text-xs" style={{ color: '#94a3b8' }}>Visit the Recovery Agent to generate your RWI score.</p>
-          )}
-          <Link to="/agent/recovery-wellness" className="text-xs font-bold flex items-center gap-1" style={{ color: '#1d4ed8' }}>
-            Go to Agent <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Psychological Card */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#f5f3ff' }}>
-              <Brain className="w-4 h-4" style={{ color: '#7c3aed' }} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#7c3aed' }}>Psychological Support</span>
-          </div>
-          <div>
-            <p className="text-xs leading-relaxed" style={{ color: '#64748b' }}>
-              {wellnessData?.result?.psychometricScores?.who5?.interpretation || 'Begin a session with the Psychological Support Agent.'}
-            </p>
-          </div>
-          <Link to="/agent/psychological-support" className="text-xs font-bold flex items-center gap-1" style={{ color: '#7c3aed' }}>
-            Start Session <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Primary Concerns */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#fff7ed' }}>
-              <AlertTriangle className="w-4 h-4" style={{ color: '#ea580c' }} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#ea580c' }}>Focus Areas</span>
-          </div>
-          <ul className="space-y-1.5">
-            {primaryConcerns.length > 0 ? primaryConcerns.slice(0, 3).map((c, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs" style={{ color: '#475569' }}>
-                <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#ea580c' }} />
-                {c}
-              </li>
-            )) : (
-              <li className="text-xs italic" style={{ color: '#94a3b8' }}>No critical concerns identified.</li>
-            )}
-          </ul>
-        </div>
-
-        {/* Strengths */}
-        <div className="card p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#f0fdf4' }}>
-              <CheckCircle2 className="w-4 h-4" style={{ color: '#16a34a' }} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#16a34a' }}>Your Strengths</span>
-          </div>
-          <ul className="space-y-1.5">
-            {strengths.length > 0 ? strengths.slice(0, 3).map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs" style={{ color: '#475569' }}>
-                <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#16a34a' }} />
-                {s}
-              </li>
-            )) : (
-              <li className="text-xs italic" style={{ color: '#94a3b8' }}>Maintaining your daily routine is a strength.</li>
-            )}
-          </ul>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
+      {/* Core AI Agents Grid */}
       <div className="space-y-3">
-        <h2 className="font-bold font-heading text-lg" style={{ color: '#1a0b35' }}>Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {QUICK_ACTIONS.map(({ label, path, icon: Icon, color, bg }) => (
-            <Link key={path} to={path}
-              className="card p-4 flex flex-col items-center text-center gap-3 hover:no-underline">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: bg }}>
-                <Icon className="w-5 h-5" style={{ color }} />
+        <h2 className="font-bold text-sm text-purple-950 uppercase tracking-wider">Specialized AI Agents</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <Link to="/agent/recovery-wellness" className="bg-white p-4 rounded-2xl border border-purple-100 hover:border-indigo-300 transition-all space-y-2 shadow-xs hover:no-underline">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                <Moon className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold leading-tight" style={{ color: '#2a1349' }}>{label}</span>
-            </Link>
-          ))}
+              {rwi && <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">RWI: {rwi}</span>}
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-purple-950">Recovery & Wellness</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Circadian rhythm & sleep optimization</p>
+            </div>
+          </Link>
+
+          <Link to="/agent/psychological-support" className="bg-white p-4 rounded-2xl border border-purple-100 hover:border-purple-300 transition-all space-y-2 shadow-xs hover:no-underline">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+              <Brain className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-purple-950">Psychological Support</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">CBT reflection & emotional resilience</p>
+            </div>
+          </Link>
+
+          <Link to="/agent/physical-activity" className="bg-white p-4 rounded-2xl border border-purple-100 hover:border-emerald-300 transition-all space-y-2 shadow-xs hover:no-underline">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-purple-950">Physical Activity</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">MoveNet pose tracking & posture guidance</p>
+            </div>
+          </Link>
+
+          <Link to="/agent/professional-support" className="bg-white p-4 rounded-2xl border border-purple-100 hover:border-amber-300 transition-all space-y-2 shadow-xs hover:no-underline">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <Shield className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs text-purple-950">Professional Care</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Clinical referral & care navigation</p>
+            </div>
+          </Link>
+
         </div>
       </div>
+
     </div>
   );
 }

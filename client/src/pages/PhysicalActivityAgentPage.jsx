@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity, Camera, CheckCircle2, AlertTriangle, FileText, Download,
-  Sparkles, Info, Shield, RefreshCw, Eye, UserCheck, Play, HelpCircle, StopCircle, Video, ArrowRight, Check, XCircle, Lock
+  Sparkles, Info, Shield, RefreshCw, Eye, UserCheck, Play, HelpCircle, StopCircle, Video, ArrowRight, Check, XCircle, Lock, Bot, RotateCcw
 } from 'lucide-react';
 import { MEDICALLY_DESIGNATED_POSES } from '../data/poseData';
 import { evaluatePoseBiomechanics, generateDemoKeypoints, verifyPoseOrientation, MOVENET_KEYPOINT_NAMES } from '../utils/poseEvaluator';
 import { generatePosePDFReport } from '../utils/pdfReportGenerator';
 import { initMoveNetDetector, detectPoseFromVideo } from '../utils/movenetDetector';
 import AgentNavigationHeader from '../components/AgentNavigationHeader';
+import InactivityTimerBanner from '../components/InactivityTimerBanner';
+import { useWellness } from '../context/WellnessContext';
 import api from '../services/api';
 
 const POSES_FLOW = ['savasana', 'balasana', 'viparita-karani'];
@@ -41,6 +44,8 @@ function ReferencePoseCard({ poseId }) {
 }
 
 export default function PhysicalActivityAgentPage() {
+  const navigate = useNavigate();
+  const { activeSessionId, refresh, agentPlan, wellnessData } = useWellness();
   const [currentStepIndex, setCurrentStepIndex] = useState(0); // 0: Savasana, 1: Balasana, 2: Viparita Karani, 3: Full Session Summary
   const [formQualityDemo, setFormQualityDemo] = useState('correct');
   const [evaluating, setEvaluating] = useState(false);
@@ -49,6 +54,9 @@ export default function PhysicalActivityAgentPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [livePoseDetected, setLivePoseDetected] = useState(false);
   const [livePoseStatus, setLivePoseStatus] = useState({ isValid: true, reason: '' });
+
+  const [autoNavCountdown, setAutoNavCountdown] = useState(10);
+  const [isAutoNavPaused, setIsAutoNavPaused] = useState(false);
 
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
@@ -62,6 +70,32 @@ export default function PhysicalActivityAgentPage() {
 
   // User can always proceed forward in physical activity agent
   const canProceedNextAgent = true;
+
+  const handleProceedNextNow = async () => {
+    if (refresh) await refresh();
+    const nextStep = agentPlan?.find(s => !s.isCompleted && s.key !== 'physical-activity');
+    const targetRoute = nextStep?.path || '/agent-session-report';
+    navigate(targetRoute);
+  };
+
+  // 10-second auto-navigation timer when Step 3 report is visible
+  useEffect(() => {
+    if (currentStepIndex !== 3 || isAutoNavPaused) return;
+
+    const timer = setInterval(() => {
+      setAutoNavCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleProceedNextNow();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentStepIndex, isAutoNavPaused, agentPlan, navigate]);
+
 
   // Completely clear canvas overlay (NO synthetic skeleton!)
   const clearOverlay = () => {
@@ -238,34 +272,56 @@ export default function PhysicalActivityAgentPage() {
     } else {
       // Complete Session — Generate Overall Report
       setEvaluating(true);
-      try {
-        const savasana = poseResults['savasana']?.overallAccuracy || 88;
-        const balasana = poseResults['balasana']?.overallAccuracy || 79;
-        const viparita = poseResults['viparita-karani']?.overallAccuracy || 91;
-        const overallScore = Math.round(savasana * 0.33 + balasana * 0.33 + viparita * 0.34);
+      setCurrentStepIndex(3);
+      setAutoNavCountdown(10);
+      setIsAutoNavPaused(false);
 
+      const savasana = poseResults['savasana']?.overallAccuracy || 88;
+      const balasana = poseResults['balasana']?.overallAccuracy || 79;
+      const viparita = poseResults['viparita-karani']?.overallAccuracy || 91;
+      const overallScore = Math.round(savasana * 0.33 + balasana * 0.33 + viparita * 0.34);
+
+      setSessionReport({
+        overallScore,
+        keyObservations: [
+          `Strong alignment maintained in Savasana (${savasana}% Accuracy)`,
+          `Good spinal decompression stability in Viparita Karani (${viparita}% Accuracy)`,
+          `Balasana showed slight hip flexor fold deviation (${balasana}% Accuracy)`
+        ],
+        areasForImprovement: ['Deepen pelvic fold during Balasana while keeping hips grounded near heels'],
+        suggestions: ['Perform 5-10 minutes of gentle hip flexor stretches before Balasana practice']
+      });
+
+      try {
         const res = await api.post('/agents/physical-activity/report', {
           poseResults,
           overallScore
         });
-        setSessionReport(res.data?.data?.report || {
-          overallScore,
-          keyObservations: [
-            `Strong alignment maintained in Savasana (${savasana}% Accuracy)`,
-            `Good spinal decompression stability in Viparita Karani (${viparita}% Accuracy)`,
-            `Balasana showed slight hip flexor fold deviation (${balasana}% Accuracy)`
-          ],
-          areasForImprovement: ['Deepen pelvic fold during Balasana while keeping hips grounded near heels'],
-          suggestions: ['Perform 5-10 minutes of gentle hip flexor stretches before Balasana practice']
-        });
-        setCurrentStepIndex(3);
+        if (res?.data?.data?.report || res?.data?.report) {
+          setSessionReport(res?.data?.data?.report || res?.data?.report);
+        }
       } catch (err) {
-        console.error('Session report generation error:', err);
+        console.warn('Backend report generation fallback:', err.message);
+      }
+
+      // Notify LangGraph engine that physical_activity step is completed
+      try {
+        await api.post('/langgraph/resume', {
+          sessionId: activeSessionId || wellnessData?.session?.sessionId,
+          userActionResult: {
+            agentName: 'physical_activity',
+            status: 'completed',
+            score: overallScore
+          }
+        });
+      } catch (lErr) {
+        console.warn('LangGraph resume warning:', lErr);
       } finally {
         setEvaluating(false);
       }
     }
   };
+
 
   useEffect(() => {
     clearOverlay();
@@ -276,13 +332,21 @@ export default function PhysicalActivityAgentPage() {
   }, []);
 
   const handleDownloadPDF = () => {
-    if (currentPoseResult) {
-      generatePosePDFReport(currentPoseResult, 'Molly');
-    }
+    generatePosePDFReport(currentPoseResult || {
+      name: 'Physical Activity 3-Pose Session',
+      overallAccuracy: sessionReport?.overallScore || 86,
+      formGrade: 'Evaluated Form',
+      feedbackList: sessionReport?.keyObservations || [
+        'Strong posture alignment in Savasana',
+        'Good spinal decompression stability in Viparita Karani'
+      ]
+    }, 'User');
   };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <InactivityTimerBanner agentName="physical_activity" sessionId={activeSessionId} />
       <AgentNavigationHeader
         activeKey="physical-activity"
         canProceed={canProceedNextAgent}
@@ -550,6 +614,51 @@ export default function PhysicalActivityAgentPage() {
       ) : (
         /* ── STEP 3: OVERALL PHYSICAL ACTIVITY SESSION REPORT ──────────────── */
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8 space-y-8">
+          
+          {/* Automated 10-Second Auto-Routing Countdown Banner */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white shadow-xl border-2 border-purple-400/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-300 font-extrabold text-xs uppercase tracking-wider">
+                <Bot className="w-4 h-4 text-amber-400 animate-bounce" />
+                <span>Closed-Loop Journey Orchestration</span>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-amber-400 text-purple-950 text-xs font-black shadow animate-pulse">
+                Auto-Routing to Next Agent in {autoNavCountdown}s
+              </span>
+            </div>
+
+            <div className="w-full bg-purple-950/80 rounded-full h-2 overflow-hidden border border-purple-400/40">
+              <div
+                className="bg-gradient-to-r from-teal-400 via-purple-400 to-amber-400 h-full rounded-full transition-all duration-1000"
+                style={{ width: `${((10 - autoNavCountdown) / 10) * 100}%` }}
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <p className="text-xs text-purple-200">
+                Session report generated! LangGraph will automatically navigate to the next agent in <strong>{autoNavCountdown}s</strong>.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAutoNavPaused(!isAutoNavPaused)}
+                  className="px-3 py-1.5 rounded-xl bg-purple-900/80 hover:bg-purple-800 text-purple-200 font-bold text-xs transition-all border border-purple-500/40 cursor-pointer"
+                >
+                  {isAutoNavPaused ? 'Resume Auto-Nav' : 'Pause'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleProceedNextNow}
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 shadow-md flex items-center gap-1.5 transition-all cursor-pointer border-none"
+                >
+                  <span>Proceed to Next Agent Now</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="border-b border-slate-100 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 bg-purple-100 px-3 py-1 rounded-full">
@@ -558,6 +667,7 @@ export default function PhysicalActivityAgentPage() {
               <h2 className="text-2xl font-black font-heading text-slate-900 mt-2">Overall Physical Activity Report</h2>
               <p className="text-xs text-slate-500 mt-0.5">Savasana · Balasana · Viparita Karani Performance Summary</p>
             </div>
+
 
             <div className="text-right">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Overall Pose Performance</span>

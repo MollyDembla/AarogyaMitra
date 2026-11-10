@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Sparkles, Moon, Activity, Brain, Clock, Zap, Heart, Sun,
   ChevronRight, AlertTriangle, CheckCircle2, HelpCircle, Leaf,
-  Wind, RefreshCw, ArrowRight, Star, TrendingUp, Shield, Info
+  Wind, RefreshCw, ArrowRight, Star, TrendingUp, Shield, Info,
+  Download, Bot
 } from 'lucide-react';
 import { generateRecoveryPlan, getLatestProfile, submitFeedback, getHistory } from '../services/recoveryService';
+import { generateAYUSHRecoveryPDFReport } from '../utils/pdfReportGenerator';
+import api from '../services/api';
 import BreathingCorner from '../components/recovery/BreathingCorner';
 import MeditationCorner from '../components/recovery/MeditationCorner';
 import AgentNavigationHeader from '../components/AgentNavigationHeader';
+import InactivityTimerBanner from '../components/InactivityTimerBanner';
+import { useWellness } from '../context/WellnessContext';
 
 // ── Dimension meta ────────────────────────────────────────────────────────────
 const DIMENSION_META = [
@@ -114,31 +120,44 @@ const REC_TABS = [
   { key: 'ayushWellnessGuidance', label: 'AYUSH',      icon: Leaf   }
 ];
 
-function RecommendationsPanel({ recommendations }) {
+function RecommendationsPanel({ recommendations, onDownloadAYUSH }) {
   const [activeTab, setActiveTab] = useState('sleepHygiene');
   const recs = recommendations?.[activeTab] || [];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 overflow-x-auto">
-        {REC_TABS.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 ${
-                activeTab === tab.key
-                  ? 'border-purple-600 text-purple-700 bg-purple-50/50'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between border-b border-slate-200 px-2 overflow-x-auto">
+        <div className="flex">
+          {REC_TABS.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold whitespace-nowrap transition-colors border-b-2 cursor-pointer ${
+                  activeTab === tab.key
+                    ? 'border-purple-600 text-purple-700 bg-purple-50/50'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {onDownloadAYUSH && (
+          <button
+            type="button"
+            onClick={onDownloadAYUSH}
+            className="flex items-center gap-1.5 px-3 py-1.5 mr-2 rounded-xl text-xs font-extrabold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Download className="w-3.5 h-3.5 text-teal-600" />
+            <span>Download AYUSH Plan PDF</span>
+          </button>
+        )}
       </div>
       {/* Content */}
       <div className="p-5 space-y-3 max-h-80 overflow-y-auto">
@@ -407,6 +426,8 @@ function RoutinePlanPanel({ profile, onUpdatePlan, generating }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function RecoveryWellnessAgentPage() {
+  const navigate = useNavigate();
+  const { activeSessionId, wellnessData, refresh, agentPlan, user } = useWellness();
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -415,6 +436,10 @@ export default function RecoveryWellnessAgentPage() {
   const [showBreathing, setShowBreathing] = useState(false);
   const [showMeditation, setShowMeditation] = useState(false);
   const [feedbackRefresh, setFeedbackRefresh] = useState(0);
+
+  const [autoNavCountdown, setAutoNavCountdown] = useState(null);
+  const [isAutoNavPaused, setIsAutoNavPaused] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -436,6 +461,50 @@ export default function RecoveryWellnessAgentPage() {
     init();
   }, [fetchProfile, feedbackRefresh]);
 
+  useEffect(() => {
+    if (autoNavCountdown === null || autoNavCountdown <= 0 || isAutoNavPaused) return;
+    const timer = setInterval(() => {
+      setAutoNavCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleProceedNextNow();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [autoNavCountdown, isAutoNavPaused]);
+
+  const handleProceedNextNow = async () => {
+    setCompleting(true);
+    try {
+      const sid = activeSessionId || wellnessData?.session?.sessionId;
+      await api.post('/langgraph/resume', {
+        sessionId: sid,
+        userActionResult: {
+          agentName: 'recovery_wellness',
+          status: 'completed',
+          rwi: profile?.recoveryWellnessIndex || 75
+        }
+      });
+      if (refresh) await refresh();
+    } catch (lErr) {
+      console.warn('LangGraph resume warning:', lErr);
+    }
+
+    const nextStep = agentPlan?.find(s => !s.isCompleted && s.key !== 'recovery-wellness');
+    if (nextStep?.path) {
+      navigate(nextStep.path);
+    } else {
+      navigate('/agent-session-report');
+    }
+  };
+
+  const handleDownloadAYUSH = () => {
+    generateAYUSHRecoveryPDFReport(profile, user?.firstName || 'User');
+  };
+
   const handleGenerate = async (exceptionalConds = '') => {
     setGenerating(true);
     setError('');
@@ -445,6 +514,21 @@ export default function RecoveryWellnessAgentPage() {
         const newProfile = result.recoveryProfile || result.agentOutput;
         setProfile(newProfile);
         await fetchProfile();
+        setAutoNavCountdown(10);
+        setIsAutoNavPaused(false);
+
+        // Notify LangGraph engine that recovery_wellness step is completed
+        try {
+          await api.post('/langgraph/resume', {
+            userActionResult: {
+              agentName: 'recovery_wellness',
+              status: 'completed',
+              rwi: newProfile.recoveryWellnessIndex || 75
+            }
+          });
+        } catch (lErr) {
+          console.warn('LangGraph resume warning:', lErr);
+        }
       }
     } catch (e) {
       setError('Could not generate recovery plan. Please ensure you have completed an assessment first.');
@@ -475,7 +559,55 @@ export default function RecoveryWellnessAgentPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+      <InactivityTimerBanner agentName="recovery_wellness" sessionId={activeSessionId} />
       <AgentNavigationHeader activeKey="recovery-wellness" />
+
+      {/* Automated 10-Second Auto-Routing Countdown Banner */}
+      {agentOutput && autoNavCountdown !== null && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-950 via-slate-900 to-cyan-950 text-white shadow-xl border-2 border-teal-400/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-teal-300 font-extrabold text-xs uppercase tracking-wider">
+              <Bot className="w-4 h-4 text-teal-400 animate-bounce" />
+              <span>Closed-Loop Journey Orchestration</span>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-teal-400 text-slate-950 text-xs font-black shadow animate-pulse">
+              Auto-Routing to Next Agent in {autoNavCountdown}s
+            </span>
+          </div>
+
+          <div className="w-full bg-slate-950/80 rounded-full h-2 overflow-hidden border border-teal-400/40">
+            <div
+              className="bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-400 h-full rounded-full transition-all duration-1000"
+              style={{ width: `${((10 - autoNavCountdown) / 10) * 100}%` }}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <p className="text-xs text-teal-200">
+              Recovery analysis complete! LangGraph will automatically route to the next agent in <strong>{autoNavCountdown}s</strong>.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAutoNavPaused(!isAutoNavPaused)}
+                className="px-3 py-1.5 rounded-xl bg-teal-900/80 hover:bg-teal-800 text-teal-200 font-bold text-xs transition-all border border-teal-500/40 cursor-pointer"
+              >
+                {isAutoNavPaused ? 'Resume Auto-Nav' : 'Pause'}
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedNextNow}
+                disabled={completing}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 shadow-md flex items-center gap-1.5 transition-all cursor-pointer border-none disabled:opacity-50"
+              >
+                <span>{completing ? 'Navigating...' : 'Proceed to Next Agent Now'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── SECTION 1: Agent Header ──────────────────────────────────────── */}
       <div className="bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-6 rounded-3xl border border-teal-800/30 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -496,12 +628,22 @@ export default function RecoveryWellnessAgentPage() {
           )}
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
+          {agentOutput && (
+            <button
+              onClick={handleDownloadAYUSH}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl font-bold text-xs transition-all shadow cursor-pointer border-none"
+            >
+              <Download className="w-4 h-4 text-teal-200" />
+              <span>Download AYUSH Plan PDF</span>
+            </button>
+          )}
+
           {agentOutput ? (
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all shadow"
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all border border-teal-500/30 shadow cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
               {generating ? 'Updating...' : 'Re-analyze'}
@@ -510,7 +652,7 @@ export default function RecoveryWellnessAgentPage() {
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 disabled:opacity-50 text-white rounded-xl font-bold shadow-lg transition-all"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-lg transition-all border-none cursor-pointer"
             >
               <Sparkles className={`w-5 h-5 ${generating ? 'animate-pulse' : ''}`} />
               {generating ? 'Analyzing your recovery profile...' : 'Generate Recovery Analysis'}
@@ -645,7 +787,7 @@ export default function RecoveryWellnessAgentPage() {
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <Star className="w-4 h-4 text-purple-600" /> Personalized Guidance
             </h2>
-            <RecommendationsPanel recommendations={recs} />
+            <RecommendationsPanel recommendations={recs} onDownloadAYUSH={handleDownloadAYUSH} />
           </div>
 
           {/* ── SECTION 4: Progress + Feedback ── */}
@@ -705,6 +847,35 @@ export default function RecoveryWellnessAgentPage() {
               </ul>
             </div>
           )}
+
+          {/* ── SECTION 5: Recovery Completion & Download Action Bar ── */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">Recovery Session Completed</h3>
+              <p className="text-xs text-slate-500">Download your integrative AYUSH plan or proceed to your next agent step.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleDownloadAYUSH}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-teal-600" />
+                <span>Download AYUSH Plan PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleProceedNextNow}
+                disabled={completing}
+                className="px-6 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 shadow-md flex items-center gap-2 transition-all cursor-pointer border-none disabled:opacity-50"
+              >
+                <span>{completing ? 'Completing...' : 'Complete Session & Next Agent'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </>
       )}
 

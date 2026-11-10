@@ -2,6 +2,8 @@ import express from 'express';
 import {
   runGraphSession,
   resumeGraphSession,
+  skipGraphSession,
+  fetchActiveGraphSession,
   fetchGraphState,
   fetchGraphTimeline,
   fetchGraphTopology
@@ -12,11 +14,13 @@ const router = express.Router();
 
 router.use(protect);
 
-// Standard LangGraph / Agentic routes
+// Active User Session & Control
+router.get('/session/active', fetchActiveGraphSession);
 router.post('/start-session', runGraphSession);
 router.post('/run', runGraphSession);
 router.post('/resume', resumeGraphSession);
 router.post('/session/:sessionId/resume', resumeGraphSession);
+router.post('/session/:sessionId/skip', skipGraphSession);
 router.get('/session/:sessionId', fetchGraphState);
 router.get('/session/:sessionId/timeline', fetchGraphTimeline);
 router.get('/state/:sessionId', fetchGraphState);

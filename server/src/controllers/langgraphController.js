@@ -91,13 +91,19 @@ export const runGraphSession = async (req, res, next) => {
  */
 export const resumeGraphSession = async (req, res, next) => {
   try {
-    const sessionId = req.params.sessionId || req.body.sessionId;
+    let sessionId = req.params.sessionId || req.body.sessionId;
     const { userActionResult } = req.body;
     const userId = req.user.id;
 
     if (!sessionId) {
+      const activeDoc = await WellnessSession.findOne({ user: userId, status: { $ne: 'completed' } }).sort({ updatedAt: -1 });
+      if (activeDoc) sessionId = activeDoc.sessionId;
+    }
+
+    if (!sessionId) {
       return apiResponse.error(res, 'sessionId is required to resume graph', null, 400);
     }
+
 
     const result = await resumeLangGraphWorkflow(sessionId, userActionResult, userId);
 
@@ -220,3 +226,93 @@ export const fetchGraphTopology = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Controller to handle agent skipping / inactivity timeout in closed-loop journey
+ */
+export const skipGraphSession = async (req, res, next) => {
+  try {
+    let sessionId = req.params.sessionId || req.body.sessionId;
+    const { agentName, reason } = req.body;
+    const userId = req.user.id;
+
+    if (!sessionId) {
+      const activeDoc = await WellnessSession.findOne({ user: userId, status: { $ne: 'completed' } }).sort({ updatedAt: -1 });
+      if (activeDoc) sessionId = activeDoc.sessionId;
+    }
+
+    if (!sessionId) {
+      return apiResponse.error(res, 'sessionId is required to skip agent step', null, 400);
+    }
+
+    const state = getSessionState(sessionId) || {};
+    const skippedAgent = agentName || state.activeAgent || 'current_agent';
+
+    const userActionResult = {
+      action: 'skipped',
+      skippedAgent,
+      reason: reason || 'inactivity_timeout'
+    };
+
+    // Record skipped execution log in MongoDB
+    try {
+      await AgentExecution.create({
+        sessionId,
+        user: userId,
+        agentName: skippedAgent,
+        nodeName: skippedAgent,
+        status: 'skipped',
+        completedAt: new Date(),
+        inputSummary: `Skipped by system/user: ${reason || 'Inactivity timeout'}`,
+        outputSummary: 'LangGraph automatically re-routed to next appropriate agent node.'
+      });
+    } catch (e) {
+      console.warn('Skipped execution logging warning:', e.message);
+    }
+
+    const result = await resumeLangGraphWorkflow(sessionId, userActionResult, userId);
+
+    return apiResponse.success(res, 'Agent step skipped. LangGraph automatically selected next step.', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controller to fetch the active session for the authenticated user
+ */
+export const fetchActiveGraphSession = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    let sessionDoc = await WellnessSession.findOne({ user: userId, status: { $ne: 'completed' } })
+      .sort({ updatedAt: -1 });
+
+    if (!sessionDoc) {
+      sessionDoc = await WellnessSession.findOne({ user: userId }).sort({ updatedAt: -1 });
+    }
+
+    if (!sessionDoc) {
+      return apiResponse.success(res, 'No active LangGraph session', { session: null, state: null });
+    }
+
+    let state = getSessionState(sessionDoc.sessionId);
+    if (!state) {
+      state = sessionDoc.graphState || {
+        sessionId: sessionDoc.sessionId,
+        activeAgent: sessionDoc.currentAgent,
+        journeyStatus: sessionDoc.journeyStatus || sessionDoc.status,
+        mmwbi: sessionDoc.mmwbi,
+        riskLevel: sessionDoc.riskLevel
+      };
+    }
+
+    return apiResponse.success(res, 'Active LangGraph session retrieved', {
+      session: sessionDoc,
+      state
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

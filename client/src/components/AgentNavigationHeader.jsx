@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Moon,
@@ -37,9 +37,10 @@ export default function AgentNavigationHeader({ activeKey, canProceed = true, ca
 
   // Target next step evaluated from plan: strictly find the first uncompleted agent that is NOT the active page
   const targetNextStep = displayPlan.find(s => !s.isCompleted && s.key !== activeKey) || null;
+  const currentActiveDef = displayPlan.find(s => s.key === activeKey) || AGENT_DEFINITIONS[activeKey];
 
   // Mark current agent completed and trigger LangGraph Re-assessment state flow
-  const handleProceedToNext = async (targetAgent) => {
+  async function handleProceedToNext(targetAgent) {
     if (!canProceed) return;
     setReassessing(true);
     setReassessStepText('Analyzing agent execution outputs & domain metrics...');
@@ -52,6 +53,19 @@ export default function AgentNavigationHeader({ activeKey, canProceed = true, ca
           completedAgent: activeDef.fullName || activeDef.name,
           status: 'in_progress'
         });
+      }
+
+      // Resume LangGraph workflow to trigger dynamic Decision-Making Agent reassessment
+      try {
+        await api.post('/langgraph/resume', {
+          userActionResult: {
+            agentName: activeKey,
+            status: 'completed',
+            completedAt: new Date()
+          }
+        });
+      } catch (lErr) {
+        console.warn('LangGraph resume non-fatal warning:', lErr);
       }
 
       setReassessStepText('Evaluating domain scores & executing LangGraph routing rules...');
@@ -74,7 +88,7 @@ export default function AgentNavigationHeader({ activeKey, canProceed = true, ca
     } finally {
       setReassessing(false);
     }
-  };
+  }
 
   return (
     <div className="space-y-4 mb-6">
@@ -179,7 +193,7 @@ export default function AgentNavigationHeader({ activeKey, canProceed = true, ca
         </Link>
       </div>
 
-      {/* Dynamic Guided Next Step Card */}
+      {/* Dynamic Guided Next Step Card — Displays Active Node & Automated Journey Status */}
       <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-purple-700/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-purple-700/40 rounded-xl text-purple-200 border border-purple-500/30">
@@ -189,50 +203,24 @@ export default function AgentNavigationHeader({ activeKey, canProceed = true, ca
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-widest text-purple-300">LangGraph State Orchestration</span>
               <span className="text-[9px] font-extrabold bg-purple-500/30 text-purple-200 px-2 py-0.5 rounded-full border border-purple-400/30">
-                Dynamic Node Re-assessment
+                Closed-Loop Automated Journey
               </span>
             </div>
             <h4 className="text-sm font-bold text-white mt-0.5">
-              {targetNextStep ? `Next Recommended Node: ${targetNextStep.name}` : 'Active Step Complete — All Plan Steps Done!'}
+              Active Agent Node: {currentActiveDef?.name || 'Wellness Agent'}
             </h4>
-            {targetNextStep?.reason && (
-              <p className="text-xs text-purple-200/80 mt-0.5 line-clamp-1">
-                {targetNextStep.reason}
-              </p>
-            )}
+            <p className="text-xs text-purple-200/80 mt-0.5">
+              Complete activities below or let inactivity auto-skip when finished. LangGraph will automatically route you to the next step.
+            </p>
           </div>
         </div>
 
-        {targetNextStep ? (
-          canProceed ? (
-            <button
-              onClick={() => handleProceedToNext(targetNextStep)}
-              className="btn-primary flex items-center gap-2 text-xs px-4 py-2.5 shadow-md whitespace-nowrap bg-purple-600 hover:bg-purple-500 text-white border-none cursor-pointer"
-            >
-              Proceed to {targetNextStep.name}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                disabled
-                title={cannotProceedReason || 'Complete current step requirements to unlock'}
-                className="flex items-center gap-2 text-xs px-4 py-2.5 shadow-sm whitespace-nowrap bg-slate-800 text-amber-300 border border-amber-500/40 rounded-xl font-bold cursor-not-allowed opacity-90"
-              >
-                <Lock className="w-4 h-4 text-amber-400" />
-                <span>{cannotProceedReason || 'Next Agent Locked'}</span>
-              </button>
-            </div>
-          )
-        ) : (
-          <Link
-            to="/dashboard"
-            className="btn-primary flex items-center gap-2 text-xs px-4 py-2.5 shadow-md whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white border-none"
-          >
-            <Check className="w-4 h-4" /> Complete Journey on Dashboard
-          </Link>
-        )}
+        <div className="flex items-center gap-2 text-xs font-extrabold px-3.5 py-2 rounded-xl bg-purple-900/80 text-amber-300 border border-purple-500/40">
+          <RotateCcw className="w-4 h-4 text-amber-400 animate-spin flex-shrink-0" />
+          <span>Auto-Routing Active</span>
+        </div>
       </div>
     </div>
   );
 }
+

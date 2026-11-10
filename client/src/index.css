@@ -22,6 +22,8 @@ h1, h2, h3, h4, .font-heading {
 @tailwind components;
 @tailwind utilities;
 
+
+
 /* ── Design tokens ────────────────────────────────────────────── */
 :root {
   --purple-900: #2a1349;
